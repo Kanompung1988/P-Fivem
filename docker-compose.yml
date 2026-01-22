@@ -1,0 +1,13 @@
+services:
+  chatbot-demo:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./streamlit_demo:/app

@@ -1,0 +1,4 @@
+# LINE Bot Dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+line-bot-sdk>=3.9.0

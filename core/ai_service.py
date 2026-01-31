@@ -33,10 +33,20 @@ class AIService:
     def __init__(self):
         if self.initialized:
             return
+        
+        # ลองใช้ Typhoon ก่อน ถ้าไม่มีค่อยใช้ OpenAI
+        typhoon_key = _get_env("TYPHOON_API_KEY")
+        if typhoon_key:
+            self.api_key = typhoon_key
+            self.base_url = "https://api.opentyphoon.ai/v1"
+            self.model_name = _get_env("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
+            print("🌊 Using Typhoon AI")
+        else:
+            self.api_key = _get_env("OPENAI_API_KEY")
+            self.base_url = _get_env("OPENAI_BASE_URL")
+            self.model_name = _get_env("OPENAI_MODEL", "gpt-4o-mini")
+            print("🤖 Using OpenAI")
             
-        self.api_key = _get_env("OPENAI_API_KEY")
-        self.base_url = _get_env("OPENAI_BASE_URL")
-        self.model_name = _get_env("OPENAI_MODEL", "gpt-4o-mini")
         self.client = self._create_openai_client()
         self.knowledge_base = []
         
@@ -60,15 +70,22 @@ class AIService:
             return None
 
     def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding for text using OpenAI API"""
+        """Get embedding for text using OpenAI API (Typhoon ยังไม่รองรับ embeddings)"""
         if not self.client:
             return []
+        
+        # Typhoon ยังไม่มี embedding API - ข้าม
+        if "typhoon" in self.model_name.lower():
+            return []
+            
         try:
             # Normalize text
             text = text.replace("\n", " ")
             return self.client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
         except Exception as e:
-            print(f"Embedding error: {e}")
+            # Suppress embedding errors for Typhoon
+            if "typhoon" not in self.model_name.lower():
+                print(f"Embedding error: {e}")
             return []
 
     def reload_knowledge_base(self):

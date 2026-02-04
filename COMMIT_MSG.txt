@@ -1,0 +1,9 @@
+feat: Add RAG+Vision+Guard system
+
+- Add RAG pipeline (LlamaIndex + ChromaDB)
+- Add Redis caching layer
+- Add GPT-4o Vision for multimodal inputs
+- Add input guard for filtering
+- Add comprehensive test suite (1000+ test cases)
+- Remove Streamlit UI
+- Update documentation

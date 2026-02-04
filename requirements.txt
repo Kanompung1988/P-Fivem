@@ -1,0 +1,36 @@
+# Phase 1: RAG + Cache Upgrade Requirements
+# Install: pip install -r requirements_upgrade.txt
+
+# === Core Dependencies (existing) ===
+openai>=1.12.0
+python-dotenv>=1.0.0
+
+# === NEW: RAG Stack ===
+# LlamaIndex Core
+llama-index-core==0.10.67
+llama-index-embeddings-openai==0.1.11
+llama-index-llms-openai==0.1.29
+llama-index-vector-stores-chroma==0.1.10
+
+# Vector Database
+chromadb==0.4.24
+
+# Cache
+redis==5.0.3
+
+# === Optional: Enhanced Features ===
+# Facebook/Instagram Scraping
+apify-client==1.7.2
+playwright==1.44.0
+
+# Scheduling
+schedule==1.2.1
+
+# === Development ===
+pytest>=8.0.0
+black>=24.0.0
+mypy>=1.8.0
+
+# === Production ===
+gunicorn>=21.2.0
+uvicorn[standard]>=0.27.0

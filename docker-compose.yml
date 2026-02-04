@@ -1,13 +1,82 @@
+# Docker Compose สำหรับ Phase 1 Upgrade (RAG + Cache)
+# รัน: docker compose -f docker-compose.upgrade.yml up --build
+
+version: '3.8'
+
 services:
-  chatbot-demo:
-    build:
-      context: .
+  # Redis Cache (NEW)
+  redis:
+    image: redis:7-alpine
+    container_name: seoulholic-redis
     restart: unless-stopped
     ports:
-      - "8501:8501"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Chatbot with RAG
+  chatbot-rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.upgrade
+    container_name: seoulholic-chatbot-rag
+    restart: unless-stopped
+    ports:
+      - "8501:8501"  # Streamlit
+      - "8000:8000"  # FastAPI (สำหรับ LINE webhook)
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     volumes:
-      - ./streamlit_demo:/app
+      - .:/app
+      - chroma_data:/app/chroma_db  # Persist vector DB
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Facebook Auto-Scraper (Optional - Phase 3)
+  fb-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.upgrade
+    container_name: seoulholic-fb-scraper
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+    volumes:
+      - .:/app
+      - chroma_data:/app/chroma_db
+    command: python facebook_integration/auto_updater.py
+    depends_on:
+      - redis
+      - chatbot-rag
+    profiles:
+      - full  # รันเฉพาะเมื่อใช้ --profile full
+
+volumes:
+  redis_data:
+    driver: local
+  chroma_data:
+    driver: local
+
+networks:
+  default:
+    name: seoulholic-network

@@ -79,12 +79,12 @@ QUICK_TEST_SAMPLES = [
 def quick_test():
     """Run quick test"""
     print("="*60)
-    print("🚀 Quick Model Test")
+    print("[START] Quick Model Test")
     print("="*60)
     
     # Check API key
     if not os.getenv("OPENAI_API_KEY"):
-        print("\n❌ OPENAI_API_KEY not found in .env")
+        print("\n[ERROR] OPENAI_API_KEY not found in .env")
         print("💡 Please add your OpenAI API key to .env file:")
         print("   OPENAI_API_KEY=sk-your-key-here")
         return
@@ -93,20 +93,20 @@ def quick_test():
     try:
         from core.enhanced_ai_service import get_enhanced_ai_service
     except ImportError as e:
-        print(f"\n❌ Import error: {e}")
+        print(f"\n[ERROR] Import error: {e}")
         return
     
     # Initialize
     print("\n📦 Initializing AI Service...")
     try:
         service = get_enhanced_ai_service(use_rag=True, use_vision=False)
-        print("✅ Service initialized")
+        print("[OK] Service initialized")
     except Exception as e:
-        print(f"❌ Initialization error: {e}")
+        print(f"[ERROR] Initialization error: {e}")
         return
     
     # Run tests
-    print(f"\n🧪 Running {len(QUICK_TEST_SAMPLES)} quick tests...\n")
+    print(f"\n[TEST] Running {len(QUICK_TEST_SAMPLES)} quick tests...\n")
     
     passed = 0
     failed = 0
@@ -132,10 +132,10 @@ def quick_test():
             
             # Status
             if len(found) >= len(expected) * 0.5:  # 50% threshold
-                status = "✅ PASS"
+                status = "[OK] PASS"
                 passed += 1
             else:
-                status = "❌ FAIL"
+                status = "[ERROR] FAIL"
                 failed += 1
             
             print(f"A: {response[:150]}...")
@@ -143,7 +143,7 @@ def quick_test():
             print(f"Keywords: {found}/{expected}")
             
         except Exception as e:
-            print(f"❌ ERROR: {e}")
+            print(f"[ERROR] ERROR: {e}")
             failed += 1
         
         print("-" * 60)
@@ -153,18 +153,18 @@ def quick_test():
     pass_rate = passed / total * 100
     
     print("\n" + "="*60)
-    print("📊 Quick Test Summary")
+    print("[STATS] Quick Test Summary")
     print("="*60)
     print(f"Total: {total}")
-    print(f"✅ Passed: {passed} ({pass_rate:.1f}%)")
-    print(f"❌ Failed: {failed} ({100-pass_rate:.1f}%)")
+    print(f"[OK] Passed: {passed} ({pass_rate:.1f}%)")
+    print(f"[ERROR] Failed: {failed} ({100-pass_rate:.1f}%)")
     
     if pass_rate >= 80:
         print("\n🎉 Model performing well!")
     elif pass_rate >= 60:
-        print("\n⚠️  Model needs improvement")
+        print("\n[WARNING]  Model needs improvement")
     else:
-        print("\n❌ Model needs major fixes")
+        print("\n[ERROR] Model needs major fixes")
     
     print("\n💡 Run full evaluation:")
     print("   python tests/evaluate_model.py")

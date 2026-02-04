@@ -37,7 +37,7 @@ class FacebookPageScraper:
             List[Dict]: รายการโพสต์
         """
         if not self.access_token:
-            print("⚠️ ไม่พบ FB_ACCESS_TOKEN - กำลังใช้โหมด Demo")
+            print("[WARNING] ไม่พบ FB_ACCESS_TOKEN - กำลังใช้โหมด Demo")
             return self._get_demo_posts()
         
         try:
@@ -71,7 +71,7 @@ class FacebookPageScraper:
             return formatted_posts
             
         except Exception as e:
-            print(f"❌ Error fetching posts: {e}")
+            print(f"[ERROR] Error fetching posts: {e}")
             return self._get_demo_posts()
     
     def get_promotions(self) -> List[Dict[str, Any]]:
@@ -116,7 +116,7 @@ class FacebookPageScraper:
                 "posts": posts
             }, f, ensure_ascii=False, indent=2)
         
-        print(f"✅ บันทึก {len(posts)} โพสต์ลงไฟล์ {filepath}")
+        print(f"[OK] บันทึก {len(posts)} โพสต์ลงไฟล์ {filepath}")
     
     def load_from_file(self, filename: str = "fb_posts.json") -> Dict[str, Any]:
         """
@@ -168,7 +168,7 @@ class FacebookPageScraper:
         return [
             {
                 "id": "demo_1",
-                "message": "🔥 โปรพิเศษ Sculptra หน้าเด็ก 2 ขวด 20cc เพียง 35,900.- (จากปกติ 47,800.-) จำกัดเพียง 5 ท่านแรก! 💖",
+                "message": " โปรพิเศษ Sculptra หน้าเด็ก 2 ขวด 20cc เพียง 35,900.- (จากปกติ 47,800.-) จำกัดเพียง 5 ท่านแรก! ",
                 "created_time": datetime.now().isoformat(),
                 "image_url": "",
                 "post_url": "https://www.facebook.com/SeoulholicClinic",
@@ -176,7 +176,7 @@ class FacebookPageScraper:
             },
             {
                 "id": "demo_2",
-                "message": "✨ โปรฟิลเลอร์สุดคุ้ม! CC แรก 12,900.- | CC ถัดไป 9,999.-/cc (15-31 ม.ค. 2569) เสริมได้ทุกส่วน คาง กรอบหน้า แก้ม ริมฝีปาก ใต้ตา 💋",
+                "message": "[NEW] โปรฟิลเลอร์สุดคุ้ม! CC แรก 12,900.- | CC ถัดไป 9,999.-/cc (15-31 ม.ค. 2569) เสริมได้ทุกส่วน คาง กรอบหน้า แก้ม ริมฝีปาก ใต้ตา ",
                 "created_time": (datetime.now() - timedelta(days=1)).isoformat(),
                 "image_url": "",
                 "post_url": "https://www.facebook.com/SeoulholicClinic",
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     # ดึงโพสต์ล่าสุด
     print("📥 ดึงโพสต์ล่าสุด...")
     posts = scraper.get_latest_posts(limit=5)
-    print(f"✅ พบ {len(posts)} โพสต์\n")
+    print(f"[OK] พบ {len(posts)} โพสต์\n")
     
     # แสดงโพสต์
     for i, post in enumerate(posts, 1):
@@ -250,10 +250,10 @@ if __name__ == "__main__":
     # ดึงเฉพาะโปรโมชั่น
     print("\n🎁 ดึงเฉพาะโปรโมชั่น...")
     promotions = scraper.get_promotions()
-    print(f"✅ พบ {len(promotions)} โปรโมชั่น\n")
+    print(f"[OK] พบ {len(promotions)} โปรโมชั่น\n")
     
     # บันทึกลงไฟล์
-    print("💾 บันทึกลงไฟล์...")
+    print("[SAVED] บันทึกลงไฟล์...")
     scraper.save_to_file(posts)
     scraper.save_to_file(promotions, "fb_promotions.json")
     

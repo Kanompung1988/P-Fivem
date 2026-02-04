@@ -167,7 +167,7 @@ class ResponseCache:
                 }
             
             self.stats["sets"] += 1
-            logger.info(f"💾 Cached: {question[:50]}... (TTL: {ttl}s)")
+            logger.info(f"[SAVED] Cached: {question[:50]}... (TTL: {ttl}s)")
             
         except Exception as e:
             logger.error(f"Cache set error: {e}")

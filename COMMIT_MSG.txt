@@ -1,9 +1,9 @@
-feat: Add RAG+Vision+Guard system
+refactor: improve AI persona and remove emoji dependencies
 
-- Add RAG pipeline (LlamaIndex + ChromaDB)
-- Add Redis caching layer
-- Add GPT-4o Vision for multimodal inputs
-- Add input guard for filtering
-- Add comprehensive test suite (1000+ test cases)
-- Remove Streamlit UI
-- Update documentation
+- Replace bot persona with "น้องโซระ" expert consultant
+- Remove all emoji markers from codebase (17 files)
+- Update system prompt for natural human-like responses
+- Remove forced follow-up questions pattern
+- Simplify greeting messages
+
+Impact: More professional tone, reduces bot-like behavior

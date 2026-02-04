@@ -47,11 +47,11 @@ class FacebookAutoUpdater:
             
             self.last_update = datetime.now()
             
-            print(f"✅ อัปเดตสำเร็จ! พบ {len(posts)} โพสต์, {len(promotions)} โปรโมชั่น")
+            print(f"[OK] อัปเดตสำเร็จ! พบ {len(posts)} โพสต์, {len(promotions)} โปรโมชั่น")
             print(f"🕐 อัปเดตครั้งถัดไปในอีก {self.update_interval} นาที\n")
             
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"[ERROR] Error: {e}")
     
     def _create_chatbot_context(self, promotions: list):
         """
@@ -76,7 +76,7 @@ class FacebookAutoUpdater:
     
     def start_scheduled_updates(self):
         """เริ่มระบบอัปเดตอัตโนมัติ"""
-        print("🚀 เริ่มระบบอัปเดตอัตโนมัติ")
+        print("[START] เริ่มระบบอัปเดตอัตโนมัติ")
         print(f"⏱️  จะอัปเดตทุก {self.update_interval} นาที")
         print("=" * 60)
         

@@ -36,7 +36,7 @@ try:
     AI_SERVICE_AVAILABLE = True
 except ImportError:
     AI_SERVICE_AVAILABLE = False
-    print("⚠️ AI Service not available")
+    print("WARNING: AI Service not available")
 
 
 class ModelEvaluator:
@@ -191,7 +191,7 @@ class ModelEvaluator:
         total = len(test_cases)
         
         print(f"\n{'='*60}")
-        print(f"🧪 Running {total} Test Cases...")
+        print(f"Running {total} Test Cases...")
         print(f"{'='*60}\n")
         
         for i, test_case in enumerate(test_cases, 1):
@@ -206,15 +206,15 @@ class ModelEvaluator:
             if result["status"] == "PASSED":
                 self.stats["passed"] += 1
                 if verbose:
-                    print("✅ PASSED")
+                    print("[PASSED]")
             elif result["status"] == "PARTIAL":
                 self.stats["partial"] += 1
                 if verbose:
-                    print("⚠️ PARTIAL")
+                    print("[PARTIAL]")
             else:
                 self.stats["failed"] += 1
                 if verbose:
-                    print(f"❌ FAILED")
+                    print("[FAILED]")
             
             # Show details for failed cases
             if verbose and result["status"] == "FAILED":
@@ -230,7 +230,7 @@ class ModelEvaluator:
     def print_summary(self):
         """Print evaluation summary"""
         print(f"\n{'='*60}")
-        print("📊 Evaluation Summary")
+        print("Evaluation Summary")
         print(f"{'='*60}\n")
         
         total = self.stats["total"]
@@ -243,9 +243,9 @@ class ModelEvaluator:
         fail_rate = (failed / total * 100) if total > 0 else 0
         
         print(f"Total Tests: {total}")
-        print(f"✅ Passed: {passed} ({pass_rate:.1f}%)")
-        print(f"⚠️  Partial: {partial} ({partial_rate:.1f}%)")
-        print(f"❌ Failed: {failed} ({fail_rate:.1f}%)")
+        print(f"Passed: {passed} ({pass_rate:.1f}%)")
+        print(f"Partial: {partial} ({partial_rate:.1f}%)")
+        print(f"Failed: {failed} ({fail_rate:.1f}%)")
         
         # Average metrics
         if self.results:
@@ -302,18 +302,18 @@ class ModelEvaluator:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        print(f"\n💾 Results saved to {output_file}")
+        print(f"\nResults saved to {output_file}")
     
     def print_failed_cases(self):
         """Print detailed info for failed cases"""
         failed = [r for r in self.results if r["status"] == "FAILED"]
         
         if not failed:
-            print("\n✅ No failed cases!")
+            print("\nNo failed cases!")
             return
         
         print(f"\n{'='*60}")
-        print(f"❌ Failed Cases ({len(failed)} total)")
+        print(f"Failed Cases ({len(failed)} total)")
         print(f"{'='*60}\n")
         
         for result in failed:
@@ -344,7 +344,7 @@ def main():
     
     # Check API key
     if not os.getenv("OPENAI_API_KEY"):
-        print("❌ OPENAI_API_KEY not found in .env")
+        print("ERROR: OPENAI_API_KEY not found in .env")
         sys.exit(1)
     
     # Get test cases
@@ -359,7 +359,7 @@ def main():
         print("Testing all cases")
     
     if not test_cases:
-        print("❌ No test cases found")
+        print("ERROR: No test cases found")
         sys.exit(1)
     
     # Run evaluation
@@ -376,7 +376,7 @@ def main():
     # Save results
     evaluator.save_results(args.output)
     
-    print("\n✨ Evaluation completed!")
+    print("\nEvaluation completed!")
 
 
 if __name__ == "__main__":

@@ -269,10 +269,10 @@ class FlexTemplates:
             Dict: Flex Message
         """
         services = [
-            {"name": "Sculptra หน้าเด็ก", "icon": "✨"},
+            {"name": "Sculptra หน้าเด็ก", "icon": "[NEW]"},
             {"name": "Exion Clear RF", "icon": "💎"},
             {"name": "Filler", "icon": "💉"},
-            {"name": "Lip Filler", "icon": "💋"},
+            {"name": "Lip Filler", "icon": ""},
             {"name": "Mounjaro", "icon": "📝"},
             {"name": "Skin Reset", "icon": "🌟"},
             {"name": "Botox", "icon": "💫"},

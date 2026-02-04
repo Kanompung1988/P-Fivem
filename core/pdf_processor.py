@@ -206,7 +206,7 @@ class PDFProcessor:
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(self.promotions, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"💾 Saved {len(self.promotions)} promotions to {output_path}")
+        logger.info(f"[SAVED] Saved {len(self.promotions)} promotions to {output_path}")
     
     def generate_rag_documents(self) -> List[Dict]:
         """

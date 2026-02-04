@@ -281,38 +281,38 @@ def generate_large_dataset(target: int = 800) -> List[Dict]:
     
     all_q = []
     all_q.extend(generate_basic_questions())
-    print(f"  ✅ Basic: {len(all_q)}")
+    print(f"  [OK] Basic: {len(all_q)}")
     
     comp = generate_comparison_questions()
     all_q.extend(comp)
-    print(f"  ✅ Comparison: {len(comp)}")
+    print(f"  [OK] Comparison: {len(comp)}")
     
     prob = generate_problem_questions()
     all_q.extend(prob)
-    print(f"  ✅ Problems: {len(prob)}")
+    print(f"  [OK] Problems: {len(prob)}")
     
     bud = generate_budget_questions()
     all_q.extend(bud)
-    print(f"  ✅ Budget: {len(bud)}")
+    print(f"  [OK] Budget: {len(bud)}")
     
     promo = generate_promotion_questions()
     all_q.extend(promo)
-    print(f"  ✅ Promotions: {len(promo)}")
+    print(f"  [OK] Promotions: {len(promo)}")
     
     clinic = generate_clinic_info()
     all_q.extend(clinic)
-    print(f"  ✅ Clinic: {len(clinic)}")
+    print(f"  [OK] Clinic: {len(clinic)}")
     
     edge = generate_edge_cases()
     all_q.extend(edge)
-    print(f"  ✅ Edge: {len(edge)}")
+    print(f"  [OK] Edge: {len(edge)}")
     
     random.shuffle(all_q)
     
     if len(all_q) > target:
         all_q = all_q[:target]
     
-    print(f"\n✅ Total Generated: {len(all_q)}")
+    print(f"\n[OK] Total Generated: {len(all_q)}")
     return all_q
 
 def export_large_dataset(output_file: str = "data/test_dataset_large.json", target_size: int = 800):
@@ -345,9 +345,9 @@ def export_large_dataset(output_file: str = "data/test_dataset_large.json", targ
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     
-    print(f"\n💾 Saved to {output_file}")
+    print(f"\n[SAVED] Saved to {output_file}")
     print("\n" + "="*60)
-    print("📊 Large Dataset Summary")
+    print("[STATS] Large Dataset Summary")
     print("="*60)
     print(f"Total Questions: {len(test_cases)}")
     print("\nBy Category:")

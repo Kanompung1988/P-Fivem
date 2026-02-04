@@ -20,19 +20,19 @@ def test_with_guard():
     # Check API key
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key.startswith("sk-your"):
-        print("❌ OPENAI_API_KEY not configured!")
+        print("[ERROR] OPENAI_API_KEY not configured!")
         print("📝 Please add your API key to .env file:")
         print("   OPENAI_API_KEY=sk-your-actual-key")
         return False
     
     print("="*70)
-    print("🚀 Integration Test: Enhanced AI Service + Input Guard")
+    print("[START] Integration Test: Enhanced AI Service + Input Guard")
     print("="*70)
     
     # Initialize service
     print("\n📦 Initializing AI Service...")
     ai = EnhancedAIService(use_rag=False, use_vision=False, use_guard=True)
-    print("✅ Service initialized")
+    print("[OK] Service initialized")
     
     # Test cases
     test_cases = [
@@ -95,7 +95,7 @@ def test_with_guard():
             # Check if result matches expectation
             test_passed = (is_blocked == test['expected_blocked'])
             
-            status = "✅ PASS" if test_passed else "❌ FAIL"
+            status = "[OK] PASS" if test_passed else "[ERROR] FAIL"
             print(f"\nStatus: {status}")
             print(f"Source: {source}")
             print(f"Blocked: {is_blocked}")
@@ -113,20 +113,20 @@ def test_with_guard():
                 failed += 1
                 
         except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
+            print(f"[ERROR] ERROR: {str(e)}")
             failed += 1
     
     # Summary
     print("\n" + "="*70)
-    print(f"📊 Test Results: {passed}/{len(test_cases)} passed ({passed/len(test_cases)*100:.1f}%)")
+    print(f"[STATS] Test Results: {passed}/{len(test_cases)} passed ({passed/len(test_cases)*100:.1f}%)")
     print("="*70)
     
     if failed == 0:
-        print("✅ All integration tests passed!")
+        print("[OK] All integration tests passed!")
         print("\n🎉 System is ready for production!")
         return True
     else:
-        print(f"❌ {failed} tests failed")
+        print(f"[ERROR] {failed} tests failed")
         return False
 
 
@@ -135,7 +135,7 @@ def quick_interactive_test():
     
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key.startswith("sk-your"):
-        print("❌ OPENAI_API_KEY not configured!")
+        print("[ERROR] OPENAI_API_KEY not configured!")
         return False
     
     print("\n" + "="*70)
@@ -165,16 +165,16 @@ def quick_interactive_test():
             
             if is_blocked:
                 print(f"\n🛡️ [BLOCKED by {source}]")
-                print(f"🤖 Bot: {response}")
+                print(f"[AI] Bot: {response}")
             else:
-                print(f"\n✅ [{source}] {result.get('latency_ms', 0):.0f}ms")
-                print(f"🤖 Bot: {response}")
+                print(f"\n[OK] [{source}] {result.get('latency_ms', 0):.0f}ms")
+                print(f"[AI] Bot: {response}")
                 
         except KeyboardInterrupt:
             print("\n👋 Goodbye!")
             break
         except Exception as e:
-            print(f"❌ Error: {str(e)}")
+            print(f"[ERROR] Error: {str(e)}")
 
 
 if __name__ == "__main__":

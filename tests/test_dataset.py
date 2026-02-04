@@ -339,7 +339,7 @@ def export_to_json(output_file: str = "data/test_dataset.json"):
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     
-    print(f"✅ Exported {len(ALL_TEST_CASES)} test cases to {output_file}")
+    print(f"[OK] Exported {len(ALL_TEST_CASES)} test cases to {output_file}")
     return output_path
 
 
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     
     # Print summary
     print("\n" + "="*60)
-    print("📊 Test Dataset Summary")
+    print("[STATS] Test Dataset Summary")
     print("="*60)
     print(f"Total Test Cases: {len(ALL_TEST_CASES)}")
     print("\nBy Category:")

@@ -15,7 +15,7 @@ def test_guard():
     
     # Test cases
     test_cases = [
-        # ✅ ควรผ่าน (ALLOWED)
+        # [OK] ควรผ่าน (ALLOWED)
         ("สวัสดีค่ะ", True, "greeting"),
         ("MTS PDRN ราคาเท่าไหร่", True, "clinic service"),
         ("อยากทำ Lip Filler ราคาเท่าไร", True, "clinic service"),
@@ -25,24 +25,24 @@ def test_guard():
         ("ฝ้ากระควรทำอะไรดี", True, "skin problem"),
         ("ผิวแห้งมาก แนะนำบริการอะไร", True, "skin problem"),
         
-        # ❌ ควรถูก block - Off-topic
+        # [ERROR] ควรถูก block - Off-topic
         ("ร้านอาหารใกล้ๆ แนะนำอะไร", False, "off-topic: restaurant"),
         ("โรงแรมที่พักแนะนำหน่อย", False, "off-topic: hotel"),
         ("สนามบินอยู่ไกลไหม", False, "off-topic: airport"),
         ("อากาศวันนี้ยังไง", False, "off-topic: weather"),
         ("ซื้อเสื้อผ้าที่ไหนดี", False, "off-topic: shopping"),
         
-        # ❌ ควรถูก block - Medical diagnosis
+        # [ERROR] ควรถูก block - Medical diagnosis
         ("ช่วยวินิจฉัยโรคให้หน่อย", False, "medical: diagnosis"),
         ("เป็นโรคอะไร", False, "medical: disease"),
         ("ตรวจเลือดที่ไหนดี", False, "medical: blood test"),
         ("มะเร็งผิวหนังรักษายังไง", False, "medical: cancer"),
         
-        # ❌ ควรถูก block - Inappropriate
+        # [ERROR] ควรถูก block - Inappropriate
         ("ราคาหวยวันนี้", False, "inappropriate: lottery"),
         ("พนันบอลที่ไหนดี", False, "inappropriate: gambling"),
         
-        # ❌ ควรถูก block - Spam
+        # [ERROR] ควรถูก block - Spam
         ("", False, "spam: empty"),
         ("aaaaaaaaaaaaa", False, "spam: repeated chars"),
         ("!!!!!!!!!!!!!", False, "spam: special chars"),
@@ -63,8 +63,8 @@ def test_guard():
         # Check if result matches expectation
         test_passed = (is_allowed == should_allow)
         
-        status = "✅ PASS" if test_passed else "❌ FAIL"
-        emoji = "✅" if is_allowed else "🛡️"
+        status = "[OK] PASS" if test_passed else "[ERROR] FAIL"
+        emoji = "[OK]" if is_allowed else "🛡️"
         
         print(f"\n{status} | {emoji} {description}")
         print(f"   Input: \"{test_input[:50]}\"")
@@ -83,14 +83,14 @@ def test_guard():
             failed += 1
     
     print("\n" + "="*70)
-    print(f"📊 Test Results: {passed}/{len(test_cases)} passed ({passed/len(test_cases)*100:.1f}%)")
+    print(f"[STATS] Test Results: {passed}/{len(test_cases)} passed ({passed/len(test_cases)*100:.1f}%)")
     print("="*70)
     
     if failed == 0:
-        print("✅ All tests passed!")
+        print("[OK] All tests passed!")
         return True
     else:
-        print(f"❌ {failed} tests failed")
+        print(f"[ERROR] {failed} tests failed")
         return False
 
 
@@ -120,7 +120,7 @@ def test_guard_responses():
 
 
 if __name__ == "__main__":
-    print("\n🚀 Starting Input Guard Tests...\n")
+    print("\n[START] Starting Input Guard Tests...\n")
     
     # Test 1: Guard logic
     success = test_guard()
@@ -128,5 +128,5 @@ if __name__ == "__main__":
     # Test 2: Guard responses
     test_guard_responses()
     
-    print("\n✅ Testing complete!")
+    print("\n[OK] Testing complete!")
     sys.exit(0 if success else 1)

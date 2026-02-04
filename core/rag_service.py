@@ -95,7 +95,7 @@ class SeoulholicRAG:
                                     "created_time": promo.get('created_time', '')
                                 }
                             ))
-                    logger.info(f"📱 Loaded {len(promotions)} Facebook promotions")
+                    logger.info(f"[DATA] Loaded {len(promotions)} Facebook promotions")
             except Exception as e:
                 logger.error(f" Error loading Facebook promotions: {e}")
         

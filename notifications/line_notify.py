@@ -33,7 +33,7 @@ class LineNotifier:
             bool: สำเร็จหรือไม่
         """
         if not self.token:
-            print("⚠️ ไม่พบ LINE_NOTIFY_TOKEN - ข้ามการส่งการแจ้งเตือน")
+            print("[WARNING] ไม่พบ LINE_NOTIFY_TOKEN - ข้ามการส่งการแจ้งเตือน")
             return False
         
         headers = {
@@ -47,10 +47,10 @@ class LineNotifier:
         try:
             response = requests.post(self.api_url, headers=headers, data=data)
             response.raise_for_status()
-            print("✅ ส่งการแจ้งเตือนไปยัง Line สำเร็จ")
+            print("[OK] ส่งการแจ้งเตือนไปยัง Line สำเร็จ")
             return True
         except Exception as e:
-            print(f"❌ ส่งการแจ้งเตือนไม่สำเร็จ: {e}")
+            print(f"[ERROR] ส่งการแจ้งเตือนไม่สำเร็จ: {e}")
             return False
     
     def notify_customer_interest(self, 
@@ -98,7 +98,7 @@ class LineNotifier:
 💬 ข้อความลูกค้า:
 {customer_message}
 
-🤖 บอทตอบ:
+[AI] บอทตอบ:
 {bot_response[:200]}{"..." if len(bot_response) > 200 else ""}
 
 ━━━━━━━━━━━━━━━━━━
@@ -171,7 +171,7 @@ def detect_customer_intent(message: str) -> Optional[str]:
 
 if __name__ == "__main__":
     # ทดสอบการทำงาน
-    print("🧪 ทดสอบ Line Notify...\n")
+    print("[TEST] ทดสอบ Line Notify...\n")
     
     notifier = LineNotifier()
     
@@ -198,6 +198,6 @@ if __name__ == "__main__":
     )
     
     if success:
-        print("✅ ทดสอบสำเร็จ!")
+        print("[OK] ทดสอบสำเร็จ!")
     else:
-        print("⚠️ ต้องตั้งค่า LINE_NOTIFY_TOKEN ใน .env ก่อนครับ")
+        print("[WARNING] ต้องตั้งค่า LINE_NOTIFY_TOKEN ใน .env ก่อนครับ")

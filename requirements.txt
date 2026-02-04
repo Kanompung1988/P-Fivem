@@ -20,8 +20,8 @@ redis==5.0.3
 
 # === Optional: Enhanced Features ===
 # Facebook/Instagram Scraping
-apify-client==1.7.2
-playwright==1.44.0
+apify-client>=2.4.0
+playwright>=1.44.0
 
 # Scheduling
 schedule==1.2.1

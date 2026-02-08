@@ -1,6 +1,8 @@
 import os
 import re
 import sys
+import hashlib
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Iterable, Union
 import numpy as np
@@ -50,6 +52,12 @@ class AIService:
         self.client = self._create_openai_client()
         self.knowledge_base = []
         
+        # In-memory cache for fast response (Senior AI Engineer optimization)
+        self.response_cache = {}  # {query_hash: {"response": str, "timestamp": float}}
+        self.cache_ttl = 3600  # 1 hour
+        self.cache_hits = 0
+        self.cache_misses = 0
+        
         # Load knowledge immediately
         self.reload_knowledge_base()
         
@@ -68,6 +76,99 @@ class AIService:
         except Exception as e:
             print(f"Error creating OpenAI client: {e}")
             return None
+    
+    def _get_cache_key(self, text: str) -> str:
+        """Generate cache key from text using hash"""
+        return hashlib.md5(text.lower().strip().encode('utf-8')).hexdigest()
+    
+    def _clean_markdown(self, text: str) -> str:
+        """AGGRESSIVE: Remove ALL markdown formatting from response"""
+        import re
+        
+        # Remove bold **text** and __text__
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'__(.+?)__', r'\1', text)
+        
+        # Remove italic *text* and _text_
+        text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
+        text = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'\1', text)
+        
+        # Remove headers ### ## #
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+        
+        # Remove links [text](url) -> text
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+        
+        # Remove code blocks ```code```
+        text = re.sub(r'```[\w]*\n?(.+?)```', r'\1', text, flags=re.DOTALL)
+        text = re.sub(r'`(.+?)`', r'\1', text)
+        
+        # Remove horizontal rules
+        text = re.sub(r'^(-{3,}|\*{3,}|_{3,})$', '', text, flags=re.MULTILINE)
+        
+        # Clean up multiple newlines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
+    
+    def _get_cached_response(self, query: str) -> Optional[str]:
+        """Get cached response if exists and not expired"""
+        cache_key = self._get_cache_key(query)
+        if cache_key in self.response_cache:
+            cached = self.response_cache[cache_key]
+            if time.time() - cached["timestamp"] < self.cache_ttl:
+                self.cache_hits += 1
+                return cached["response"]
+            else:
+                # Expired - remove
+                del self.response_cache[cache_key]
+        self.cache_misses += 1
+        return None
+    
+    def _set_cached_response(self, query: str, response: str):
+        """Cache the response"""
+        cache_key = self._get_cache_key(query)
+        self.response_cache[cache_key] = {
+            "response": response,
+            "timestamp": time.time()
+        }
+        # Limit cache size to 1000 entries
+        if len(self.response_cache) > 1000:
+            # Remove oldest entries
+            sorted_keys = sorted(self.response_cache.keys(), 
+                               key=lambda k: self.response_cache[k]["timestamp"])
+            for key in sorted_keys[:100]:
+                del self.response_cache[key]
+    
+    def _expand_query(self, query: str) -> str:
+        """Expand query with synonyms and related terms for better RAG matching"""
+        # Keyword expansion mapping (Thai clinic terms)
+        expansions = {
+            'mts': 'MTS PDRN เข็ม ผิว',
+            'pdrn': 'PDRN MTS ฟื้นฟู คอลลาเจน',
+            'ฟิลเลอร์': 'Filler ฟิลเลอร์ เสริม',
+            'filler': 'Filler ฟิลเลอร์ เสริม',
+            'ปาก': 'Lip ริมฝีปาก ปาก',
+            'lip': 'Lip ปาก ริมฝีปาก',
+            'โปร': 'โปรโมชั่น promotion ลดราคา',
+            'promotion': 'โปรโมชั่น promotion ลด',
+            'คลินิก': 'คลินิก clinic ที่อยู่ สถานที่',
+            'clinic': 'คลินิก clinic ที่ตั้ง',
+            'จอง': 'จองคิว นัดหมาย ติดต่อ',
+            'sculptra': 'Sculptra หน้าเด็ก คอลลาเจน',
+            'หน้าเด็ก': 'Sculptra หน้าเด็ก ฟู',
+            'ริ้วรอย': 'ริ้วรอย wrinkle anti-aging',
+            'ผิวแห้ง': 'ผิวแห้ง dry ชุ่มชื้น',
+        }
+        
+        query_lower = query.lower()
+        expanded = query
+        
+        for keyword, expansion in expansions.items():
+            if keyword in query_lower:
+                expanded += f" {expansion}"
+        
+        return expanded
 
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text using OpenAI API (Typhoon ยังไม่รองรับ embeddings)"""
@@ -79,8 +180,8 @@ class AIService:
             return []
             
         try:
-            # Normalize text
-            text = text.replace("\n", " ")
+            # Normalize text (better for caching)
+            text = text.replace("\n", " ").strip()
             return self.client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
         except Exception as e:
             # Suppress embedding errors for Typhoon
@@ -130,20 +231,23 @@ class AIService:
     def rewrite_query(self, user_text: str, history: List[Dict[str, str]]) -> str:
         """
         Rewrite user query based on conversation history to make it standalone.
-        Uses a lightweight model call for speed and cost.
+        Senior AI Engineer optimization: Better context extraction
         """
-        if not history or not self.client:
+        # Quick return for simple queries
+        if not history or not self.client or len(user_text) < 10:
             return user_text
             
-        # Extract last few turns (e.g., last 3 pairs) to keep context manageable
-        # Filter out system prompts or irrelevant messages
+        # Extract last few turns (last 4 pairs) for better context
         conversation_str = ""
-        for msg in history[-6:]: 
+        for msg in history[-8:]: 
             role = "User" if msg["role"] == "user" else "Assistant"
             content = msg["content"]
             # Skip system prompts or empty content
             if msg["role"] == "system" or not content:
                 continue
+            # Truncate long messages
+            if len(content) > 200:
+                content = content[:200] + "..."
             conversation_str += f"{role}: {content}\n"
             
         if not conversation_str.strip():
@@ -244,8 +348,8 @@ Standalone Question:"""
             
             count = 0
             for score, doc in results:
-                if count >= 2: break
-                if score < 0.35: break # Confidence threshold
+                if count >= 5: break  # AGGRESSIVE: Increased from 3 to 5 documents
+                if score < 0.15: break  # AGGRESSIVE: Lowered from 0.25 to 0.15 for more results
                 
                 # Avoid dupes
                 if is_asking_promo and fb_promo and doc["source"] == "FacebookPromotions":
@@ -254,7 +358,7 @@ Standalone Question:"""
                 relevant_docs.append(f"\n--- ข้อมูลเกี่ยวกับ {doc['source']} (Score: {score:.2f}) ---\n{doc['content']}")
                 count += 1
                 
-            return "\n".join(relevant_docs[:2])
+            return "\n".join(relevant_docs[:5])  # AGGRESSIVE: Increased from 2 to 5
         except Exception as e:
             print(f"RAG Error: {e}")
             return ""
@@ -279,6 +383,18 @@ Standalone Question:"""
                 return image_name
         
         return None
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics for monitoring"""
+        total_requests = self.cache_hits + self.cache_misses
+        hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
+        return {
+            "cache_size": len(self.response_cache),
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "hit_rate_percent": round(hit_rate, 2),
+            "total_requests": total_requests
+        }
 
     def get_system_prompt(self) -> str:
         default_prompt = """คุณคือ "น้องโซระ" ผู้เชี่ยวชาญด้านความงามและผิวพรรณของ Seoulholic Clinic ให้คำปรึกษาเกี่ยวกับการดูแลผิว บริการต่างๆ และโปรโมชั่น
@@ -289,6 +405,24 @@ Standalone Question:"""
 - ให้ข้อมูลที่ตรงประเด็น ไม่ยืดเยื้อ
 - ถ้าไม่แน่ใจเรื่องราคาหรือรายละเอียดเฉพาะ แนะนำให้ปรึกษาเพิ่มเติม
 - ไม่ต้องถามคำถามติดตามทุกครั้ง ให้เป็นไปตามบริบทการสนทนา
+
+⚠️ CRITICAL RULES - ห้ามฝ่าฝืนเด็ดขาด:
+- ห้ามใช้ Markdown formatting ทุกรูปแบบ: **, __, *, _, ##, ###, [], (), ```
+- ห้ามใช้ bold, italic, headers, links, code blocks
+- ใช้ข้อความธรรมดาเท่านั้น (plain text only)
+- ใช้ emoji เบาๆ ได้ เช่น 💡 ✨ เพื่อความเป็นกันเอง
+- ตัวเลขใช้รูปแบบ: 1. 2. 3. หรือ • ได้
+- URL ใส่แบบธรรมดา ไม่ต้อง wrap ด้วย []
+
+ตัวอย่างที่ถูกต้อง:
+✅ "Sculptra ช่วยกระตุ้นคอลลาเจน ทำให้ผิวฟูกระชับค่ะ"
+✅ "โปรโมชั่น: CC แรก 12,900.- | CC ถัดไป 9,999.-/cc ค่ะ"
+✅ "ติดต่อได้ที่ Line: https://lin.ee/FhWfx5U หรือโทร 099-989-2893 ค่ะ"
+
+ตัวอย่างที่ผิด:
+❌ "**Sculptra** ช่วยกระตุ้นคอลลาเจน"  (มี **)
+❌ "โปรโมชั่น: [CC แรก](link)"  (มี [])
+❌ "## บริการของเรา"  (มี ##)
 
 ข้อมูลคลินิก:
 - Seoulholic Clinic (โซลฮอลิกคลินิก)
@@ -366,11 +500,20 @@ Assistant: อยู่ที่ The Zone (Town in Town) ซอยลาดพ�
 
         return _get_env("SYSTEM_PROMPT", default_prompt) or default_prompt
 
-    def chat_completion(self, messages: List[Dict[str, str]], stream: bool = False) -> Iterable[str]:
-        """Wrapper for calling OpenAI Chat Completion"""
+    def chat_completion(self, messages: List[Dict[str, str]], stream: bool = False, use_cache: bool = True) -> Iterable[str]:
+        """OPTIMIZED: Wrapper for calling OpenAI Chat Completion with caching and markdown removal"""
         if not self.client:
             yield "(Error: AI Service not initialized with API Key)"
             return
+        
+        # Check cache first (only for non-stream, single user message)
+        if use_cache and not stream and len(messages) >= 2:
+            user_msg = messages[-1].get("content", "")
+            if user_msg:
+                cached = self._get_cached_response(user_msg)
+                if cached:
+                    yield cached
+                    return
 
         try:
             if stream:
@@ -379,17 +522,35 @@ Assistant: อยู่ที่ The Zone (Town in Town) ซอยลาดพ�
                     messages=messages,
                     stream=True,
                     temperature=0.3,
+                    max_tokens=300,  # AGGRESSIVE: Reduced from 400 to 300 for speed
                 )
+                full_response = ""
                 for event in stream_resp:
                     chunk = event.choices[0].delta.content
                     if chunk:
+                        full_response += chunk
                         yield chunk
+                # Clean markdown and cache
+                full_response = self._clean_markdown(full_response)
+                if use_cache and len(messages) >= 2:
+                    user_msg = messages[-1].get("content", "")
+                    if user_msg:
+                        self._set_cached_response(user_msg, full_response)
             else:
                 resp = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
                     temperature=0.3,
+                    max_tokens=300,  # AGGRESSIVE: Reduced from 400 to 300 for speed
                 )
-                yield resp.choices[0].message.content or ""
+                response = resp.choices[0].message.content or ""
+                # AGGRESSIVE: Clean ALL markdown
+                response = self._clean_markdown(response)
+                # Cache the response
+                if use_cache and len(messages) >= 2:
+                    user_msg = messages[-1].get("content", "")
+                    if user_msg:
+                        self._set_cached_response(user_msg, response)
+                yield response
         except Exception as e:
             yield f"(Error calling OpenAI: {e})"

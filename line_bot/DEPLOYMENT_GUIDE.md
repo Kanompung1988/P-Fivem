@@ -33,7 +33,12 @@ LINE_NOTIFY_TOKEN=...
 # LINE Bot (ใหม่)
 LINE_CHANNEL_ACCESS_TOKEN=your_channel_access_token_here
 LINE_CHANNEL_SECRET=your_channel_secret_here
+
+# Public URL for Images (Required for LINE to display images)
+PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
 ```
+
+**⚠️ สำคัญ:** LINE รองรับเฉพาะ HTTPS URLs เท่านั้น สำหรับรูปภาพและ webhooks
 
 ---
 
@@ -75,11 +80,30 @@ ngrok http 9000
 ```
 
 คุณจะได้ URL แบบนี้:
+
 ```
-Forwarding    https://xxxx-xx-xx-xxx-xxx.ngrok-free.app -> http://localhost:8000
+Forwarding    https://xxxx-xx-xx-xxx-xxx.ngrok-free.app -> http://localhost:9000
 ```
 
-### ขั้นตอนที่ 5: ตั้งค่า Webhook ใน LINE
+**📝 Copy URL นี้!** คุณจะต้องใช้มันในขั้นตอนถัดไป
+
+### ขั้นตอนที่ 5: อัพเดท .env ด้วย PUBLIC_URL
+
+เปิดไฟล์ `.env` และเพิ่ม:
+
+```env
+PUBLIC_URL=https://xxxx-xx-xx-xxx-xxx.ngrok-free.app
+```
+
+**แล้ว restart** LINE Bot server:
+
+```powershell
+# กด Ctrl+C เพื่อหยุด server เดิม
+# จากนั้นรันใหม่
+python line_bot/app.py
+```
+
+### ขั้นตอนที่ 6: ตั้งค่า Webhook ใน LINE
 
 1. ไปที่ LINE Developers Console → เลือก Channel ของคุณ
 2. ไปที่แท็บ **Messaging API**
@@ -96,11 +120,14 @@ Forwarding    https://xxxx-xx-xx-xxx-xxx.ngrok-free.app -> http://localhost:8000
 3. คลิก **Edit** ตรง Auto-reply messages
 4. ปิด Auto-reply (เพื่อให้ Bot ตอบแทน)
 
-### ขั้นตอนที่ 7: ทดสอบ
+### ขั้นตอนที่ 8: ทดสอบ
 
 1. สแกน QR Code หรือเพิ่มเพื่อน Bot ของคุณ
 2. ส่งข้อความทักทาย
-3. Bot ควรตอบกลับมา!
+3. Bot ควรตอบกลับมา พร้อมรูปภาพ (ถ้ามี)!
+
+**⚠️ หมายเหตุ:** Ngrok free tier จะมี URL ที่เปลี่ยนทุกครั้งที่รีสตาร์ท ต้องอัพเดท PUBLIC_URL และ Webhook URL ใหม่ทุกครั้ง
+สำหรับ production แนะนำใช้ Ngrok paid plan หรือ deploy บน cloud platform
 
 ---
 
@@ -144,16 +171,19 @@ git push
    - `LINE_CHANNEL_ACCESS_TOKEN`
    - `LINE_CHANNEL_SECRET`
    - `LINE_NOTIFY_TOKEN`
+   - `PUBLIC_URL` (ใส่ URL ที่ Render ให้มา เช่น `https://seoulholic-line-bot.onrender.com`)
 6. คลิก **Create Web Service**
 
 ### ขั้นตอนที่ 4: ตั้งค่า Webhook
 
 หลังจาก Deploy สำเร็จ คุณจะได้ URL เช่น:
+
 ```
 https://seoulholic-line-bot.onrender.com
 ```
 
 ไปตั้งค่า Webhook ใน LINE Developers:
+
 ```
 https://seoulholic-line-bot.onrender.com/webhook
 ```
@@ -183,12 +213,14 @@ https://seoulholic-line-bot.onrender.com/webhook
 ระบบ Facebook Auto-updater ควรรันแยกต่างหาก:
 
 ### บน Local:
+
 ```powershell
 # Terminal แยก
 python facebook_integration/auto_updater.py
 ```
 
 ### บน Server:
+
 ตั้งค่า Cron Job หรือใช้ Background Worker ของ Render/Railway
 
 ---
@@ -220,16 +252,19 @@ curl http://localhost:8000/
 ### ดู Logs
 
 **Ngrok:**
+
 ```
 ดูได้ที่ http://localhost:4040
 ```
 
 **Render:**
+
 ```
 Dashboard → Logs tab
 ```
 
 **Railway:**
+
 ```
 Project → Deployments → Logs
 ```
@@ -243,12 +278,14 @@ Project → Deployments → Logs
 **สาเหตุ:** Channel Secret ไม่ถูกต้อง
 
 **แก้ไข:**
+
 - ตรวจสอบ `LINE_CHANNEL_SECRET` ใน .env
 - ต้องตรงกับใน LINE Developers Console
 
 ### 2. Bot ไม่ตอบ
 
 **ตรวจสอบ:**
+
 ```powershell
 # ดู logs
 python line_bot/app.py
@@ -257,6 +294,7 @@ python line_bot/app.py
 ```
 
 **สาเหตุที่พบบ่อย:**
+
 - Auto-reply ยังเปิดอยู่ใน LINE Official Account
 - Webhook URL ไม่ถูกต้อง
 - OpenAI API Key หมดอายุหรือไม่มี credit
@@ -264,6 +302,7 @@ python line_bot/app.py
 ### 3. ImportError
 
 **แก้ไข:**
+
 ```powershell
 pip install -r line_bot/requirements.txt
 ```
@@ -271,6 +310,7 @@ pip install -r line_bot/requirements.txt
 ### 4. Port Already in Use
 
 **แก้ไข:**
+
 ```powershell
 # เปลี่ยน port ในไฟล์ app.py
 # หรือ kill process ที่ใช้ port 8000
@@ -286,7 +326,7 @@ pip install -r line_bot/requirements.txt
 ✅ **Flex Messages** - แสดงโปรโมชั่นแบบสวยงาม  
 ✅ **Intent Detection** - ตรวจจับความต้องการของลูกค้า  
 ✅ **LINE Notify** - แจ้งทีมงานเมื่อลูกค้าสนใจ  
-✅ **Facebook Integration** - ดึงโปรโมชั่นล่าสุดอัตโนมัติ  
+✅ **Facebook Integration** - ดึงโปรโมชั่นล่าสุดอัตโนมัติ
 
 ---
 
@@ -303,6 +343,7 @@ pip install -r line_bot/requirements.txt
 ## 🎉 เสร็จสิ้น!
 
 ตอนนี้คุณมี LINE Bot ที่:
+
 - ตอบคำถามด้วย AI อัจฉริยะ
 - แสดงโปรโมชั่นจาก Facebook อัตโนมัติ
 - แจ้งเตือนทีมงานเมื่อลูกค้าสนใจ

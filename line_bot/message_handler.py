@@ -22,6 +22,54 @@ class LineMessageHandler:
         self.flex_templates = FlexTemplates()
         # เก็บ conversation history แยกตาม user_id
         self.user_sessions: Dict[str, list] = {}
+    
+    def _clean_markdown_for_line(self, text: str) -> str:
+        """
+        แปลง Markdown เป็น plain text ที่อ่านง่ายสำหรับ LINE
+        LINE ไม่รองรับ Markdown formatting ต้องแปลงเป็น plain text
+        
+        Args:
+            text: ข้อความที่มี Markdown
+            
+        Returns:
+            str: Plain text ที่อ่านง่าย
+        """
+        import re
+        
+        # แปลง bold **text** หรือ __text__ เป็น text ธรรมดา
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'__(.+?)__', r'\1', text)
+        
+        # แปลง italic *text* หรือ _text_ เป็น text ธรรมดา
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        text = re.sub(r'_(.+?)_', r'\1', text)
+        
+        # แปลง headers (# ## ###) เป็นข้อความธรรมดาพร้อม emoji
+        text = re.sub(r'^###\s+(.+)$', r'▪️ \1', text, flags=re.MULTILINE)
+        text = re.sub(r'^##\s+(.+)$', r'◾️ \1', text, flags=re.MULTILINE)
+        text = re.sub(r'^#\s+(.+)$', r'━━━\n\1\n━━━', text, flags=re.MULTILINE)
+        
+        # แปลง links [text](url) เป็น text (url)
+        text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'\1\n👉 \2', text)
+        
+        # แปลง bullet list - item เป็น • item
+        text = re.sub(r'^-\s+', '• ', text, flags=re.MULTILINE)
+        text = re.sub(r'^\*\s+', '• ', text, flags=re.MULTILINE)
+        
+        # แปลง numbered list 1. item เป็น 1. item (เก็บไว้)
+        # ไม่ต้องทำอะไร
+        
+        # ลบ code blocks ```code``` เหลือแค่ code
+        text = re.sub(r'```[\w]*\n?(.+?)```', r'\1', text, flags=re.DOTALL)
+        text = re.sub(r'`(.+?)`', r'\1', text)
+        
+        # ลบ horizontal rules --- หรือ ***
+        text = re.sub(r'^(-{3,}|\*{3,})$', '', text, flags=re.MULTILINE)
+        
+        # ลบบรรทัดว่างซ้อนกัน
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
         
     def get_user_session(self, user_id: str) -> list:
         """
@@ -46,14 +94,26 @@ class LineMessageHandler:
     
     def _get_public_image_url(self, image_name: str) -> Optional[str]:
         """
-        แปลงชื่อไฟล์ภาพเป็น public URL สำหรับ LINE (ใช้ ngrok URL หรือ public domain)
+        แปลงชื่อไฟล์ภาพเป็น public URL สำหรับ LINE (ต้องเป็น HTTPS)
+        LINE รองรับแค่ HTTPS URLs เท่านั้น
         """
         if not image_name:
             return None
         import os
-        # ใช้ NGROK_URL จาก environment variable (ตั้งค่าใน .env หรือ runtime)
-        # ตัวอย่าง: NGROK_URL=https://xxxx-xx-xx-xxx-xxx.ngrok-free.app
-        base_url = os.getenv("NGROK_URL", "http://localhost:5000")
+        
+        # ใช้ PUBLIC_URL จาก environment variable (ต้องเป็น HTTPS)
+        # ตัวอย่าง: PUBLIC_URL=https://xxxx.ngrok-free.app
+        base_url = os.getenv("PUBLIC_URL", os.getenv("NGROK_URL", ""))
+        
+        # ตรวจสอบว่า URL เป็น HTTPS หรือไม่
+        if not base_url or not base_url.startswith("https://"):
+            # ถ้าไม่มี HTTPS URL ให้ใช้ placeholder image หรือข้าม
+            print(f"⚠️  Warning: PUBLIC_URL ต้องเป็น HTTPS เพื่อให้ LINE แสดงรูปได้")
+            print(f"⚠️  ตั้งค่าใน .env: PUBLIC_URL=https://your-domain.com")
+            return None
+        
+        # ลบ trailing slash
+        base_url = base_url.rstrip("/")
         return f"{base_url}/images/{image_name}"
 
     def handle_message(self, user_id: str, message: str) -> Dict[str, Any]:
@@ -96,7 +156,10 @@ class LineMessageHandler:
         for chunk in self.ai_service.chat_completion(messages_to_send, stream=False):
             response_text += chunk
         
-        # เพิ่มคำตอบเข้า session
+        # แปลง Markdown เป็น plain text สำหรับ LINE
+        cleaned_text = self._clean_markdown_for_line(response_text)
+        
+        # เพิ่มคำตอบเข้า session (เก็บ original text)
         session.append({"role": "assistant", "content": response_text})
         
         # จำกัดประวัติการสนทนาไม่ให้เยอะเกินไป (เก็บแค่ 20 ข้อความล่าสุด + system prompt)
@@ -107,11 +170,11 @@ class LineMessageHandler:
             self.user_sessions[user_id] = [system_prompt] + recent_messages
         
         # ตรวจสอบว่าควรส่ง LINE Notify หรือไม่
-        self._check_and_notify(user_id, message, response_text, session)
+        self._check_and_notify(user_id, message, cleaned_text, session)
         
         # สร้าง response object
         response = {
-            "text": response_text,
+            "text": cleaned_text,  # ส่ง cleaned text ที่ไม่มี Markdown
             "image_url": None,
             "flex_message": None,
             "flex_alt_text": None

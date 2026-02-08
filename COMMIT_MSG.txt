@@ -1,9 +1,0 @@
-refactor: improve AI persona and remove emoji dependencies
-
-- Replace bot persona with "น้องโซระ" expert consultant
-- Remove all emoji markers from codebase (17 files)
-- Update system prompt for natural human-like responses
-- Remove forced follow-up questions pattern
-- Simplify greeting messages
-
-Impact: More professional tone, reduces bot-like behavior

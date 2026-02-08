@@ -1,0 +1,77 @@
+{
+  "test_results": [
+    {
+      "test_id": 1,
+      "category": "Service Information",
+      "question": "MTS PDRN คืออะไรคะ",
+      "response_length": 413,
+      "latency_ms": 2361.793041229248,
+      "keyword_score": 100.0,
+      "quality_score": 100,
+      "grade": "A+",
+      "has_markdown": false
+    },
+    {
+      "test_id": 2,
+      "category": "Promotions",
+      "question": "มีโปรโมชั่นอะไรบ้างคะ",
+      "response_length": 344,
+      "latency_ms": 2450.766086578369,
+      "keyword_score": 66.66666666666666,
+      "quality_score": 100,
+      "grade": "A+",
+      "has_markdown": false
+    },
+    {
+      "test_id": 3,
+      "category": "Clinic Information",
+      "question": "คลินิกอยู่ที่ไหนคะ",
+      "response_length": 127,
+      "latency_ms": 1025.1379013061523,
+      "keyword_score": 50.0,
+      "quality_score": 80,
+      "grade": "A",
+      "has_markdown": false
+    },
+    {
+      "test_id": 4,
+      "category": "Consultation",
+      "question": "ผิวหน้าแห้งมาก มีริ้วรอย ควรทำอะไรดีคะ",
+      "response_length": 391,
+      "latency_ms": 1845.2081680297852,
+      "keyword_score": 50.0,
+      "quality_score": 80,
+      "grade": "A",
+      "has_markdown": false
+    },
+    {
+      "test_id": 5,
+      "category": "Pricing",
+      "question": "ทำ Filler ที่ริมฝีปากราคาเท่าไหร่คะ",
+      "response_length": 336,
+      "latency_ms": 1702.211856842041,
+      "keyword_score": 50.0,
+      "quality_score": 80,
+      "grade": "A",
+      "has_markdown": false
+    },
+    {
+      "test_id": 6,
+      "category": "Booking",
+      "question": "จองคิวได้ยังไงคะ",
+      "response_length": 198,
+      "latency_ms": 1288.5289192199707,
+      "keyword_score": 100.0,
+      "quality_score": 100,
+      "grade": "A+",
+      "has_markdown": false
+    }
+  ],
+  "summary": {
+    "avg_latency_ms": 1778.940995534261,
+    "avg_quality_score": 90.0,
+    "avg_keyword_match": 69.44444444444444,
+    "markdown_issues": 0,
+    "overall_grade": "A+ (Excellent)"
+  }
+}

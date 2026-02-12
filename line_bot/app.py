@@ -24,6 +24,7 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
+    ImageMessageContent,
     FollowEvent
 )
 from linebot.v3.messaging import FlexMessage
@@ -153,6 +154,28 @@ def handle_text_message(event):
                     messages=messages[:5]  # LINE จำกัดสูงสุด 5 messages
                 )
             )
+
+
+@handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image_message(event):
+    """
+    จัดการรูปภาพที่ user ส่งมา
+    ตอนนี้ bot ยังไม่มีระบบวิเคราะห์รูป แต่จะตอบกลับให้ user รู้ว่ารับรูปแล้ว
+    """
+    user_id = event.source.user_id
+    logger.info(f"User {user_id} sent an image")
+    
+    # ตอบกลับว่ารับรูปแล้ว แต่ยังไม่มีระบบวิเคราะห์
+    response_text = "ขอบคุณสำหรับรูปภาพค่ะ 📸\n\nตอนนี้ระบบยังไม่สามารถวิเคราะห์รูปได้นะคะ แต่ถ้าอยากให้คำแนะนำเรื่องผิวพรรณ สามารถบอกอาการที่สนใจมาได้เลยค่ะ เช่น ฝ้า กระ หลุมสิว ริ้วรอย เป็นต้น\n\nหรือถ้าต้องการคำปรึกษาเฉพาะบุคคล ติดต่อคลินิกโดยตรงได้ที่:\nLine: https://lin.ee/FhWfx5U\nTel: 099-989-2893"
+    
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message_with_http_info(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_text)]
+            )
+        )
 
 
 @handler.add(FollowEvent)

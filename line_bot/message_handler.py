@@ -70,6 +70,48 @@ class LineMessageHandler:
         text = re.sub(r'\n{3,}', '\n\n', text)
         
         return text.strip()
+    
+    def _remove_image_requests(self, text: str) -> str:
+        """
+        ลบหรือแทนที่ส่วนที่ AI ขอรูปภาพออก เพราะระบบไม่รองรับการวิเคราะห์รูป
+        
+        Args:
+            text: ข้อความตอบกลับจาก AI
+            
+        Returns:
+            str: ข้อความที่ไม่มีการขอรูป
+        """
+        import re
+        
+        # รายการคำหรือวลีที่บ่งบอกว่ากำลังขอรูป
+        image_request_patterns = [
+            r'ส่งรูป[ภาพผิวหน้าของคุณมา]*[ได้ไหม]*[ค่ะคะ]*',
+            r'ช่วยส่งรูป[ภาพผิวหน้า]*[มา]*[ให้]*[หน่อย]*[ได้ไหม]*[ค่ะคะ]*',
+            r'ขอดูรูป[ภาพผิวหน้า]*[หน่อย]*[ได้ไหม]*[ค่ะคะ]*',
+            r'เพื่อ.*ประเมิน.*ส่งรูป.*',
+            r'ส่งภาพ[ผิวหน้า]*[มา]*[ให้]*[หน่อย]*[ได้ไหม]*',
+            r'แนบรูป[ภาพ]*[ผิวหน้า]*[มา]*[ด้วย]*',
+        ]
+        
+        # ลบประโยคที่ขอรูป
+        for pattern in image_request_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        
+        # ลบประโยคที่มีคำว่า "ส่งรูป" หรือ "ขอรูป" ทั้งประโยค
+        lines = text.split('\n')
+        filtered_lines = []
+        for line in lines:
+            line_lower = line.lower()
+            if not any(keyword in line_lower for keyword in ['ส่งรูป', 'ขอรูป', 'ขอดูรูป', 'แนบรูป', 'ช่วยส่งรูป']):
+                filtered_lines.append(line)
+        
+        # รวมกลับเป็นข้อความ
+        result = '\n'.join(filtered_lines)
+        
+        # ลบบรรทัดว่างซ้อนกัน
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        
+        return result.strip()
         
     def get_user_session(self, user_id: str) -> list:
         """
@@ -100,6 +142,13 @@ class LineMessageHandler:
         if not image_name:
             return None
         import os
+        from pathlib import Path
+        
+        # ตรวจสอบว่ามีไฟล์จริงหรือไม่ในโฟลเดอร์ data/img
+        img_path = Path(__file__).resolve().parents[1] / "data" / "img" / image_name
+        if not img_path.exists():
+            print(f"⚠️  Warning: Image file not found: {img_path}")
+            return None
         
         # ใช้ PUBLIC_URL จาก environment variable (ต้องเป็น HTTPS)
         # ตัวอย่าง: PUBLIC_URL=https://xxxx.ngrok-free.app
@@ -110,11 +159,14 @@ class LineMessageHandler:
             # ถ้าไม่มี HTTPS URL ให้ใช้ placeholder image หรือข้าม
             print(f"⚠️  Warning: PUBLIC_URL ต้องเป็น HTTPS เพื่อให้ LINE แสดงรูปได้")
             print(f"⚠️  ตั้งค่าใน .env: PUBLIC_URL=https://your-domain.com")
+            print(f"⚠️  Current PUBLIC_URL: {base_url or '(not set)'}")
             return None
         
         # ลบ trailing slash
         base_url = base_url.rstrip("/")
-        return f"{base_url}/images/{image_name}"
+        image_url = f"{base_url}/images/{image_name}"
+        print(f"✅ Image URL generated: {image_url}")
+        return image_url
 
     def handle_message(self, user_id: str, message: str) -> Dict[str, Any]:
         """
@@ -127,6 +179,16 @@ class LineMessageHandler:
         Returns:
             Dict: คำตอบพร้อม metadata (text, image_url, flex_message)
         """
+        # ตรวจสอบคำสั่ง reset (case-insensitive)
+        if message.strip().lower() in ['reset', '/reset', 'รีเซ็ต', 'เริ่มใหม่']:
+            self.clear_session(user_id)
+            return {
+                "text": "รีเซ็ตการสนทนาเรียบร้อยแล้วค่ะ ✨ เริ่มคุยใหม่ได้เลยนะคะ",
+                "image_url": None,
+                "flex_message": None,
+                "flex_alt_text": None
+            }
+        
         # ดึง session ของ user
         session = self.get_user_session(user_id)
         
@@ -156,8 +218,17 @@ class LineMessageHandler:
         for chunk in self.ai_service.chat_completion(messages_to_send, stream=False):
             response_text += chunk
         
+        # ลบส่วนที่ AI อาจขอรูปภาพออก (ระบบไม่รองรับการวิเคราะห์รูป)
+        response_text = self._remove_image_requests(response_text)
+        
         # แปลง Markdown เป็น plain text สำหรับ LINE
         cleaned_text = self._clean_markdown_for_line(response_text)
+        
+        # ตัดข้อความถ้ายาวเกิน LINE limit (5000 chars) พร้อมข้อความแจ้งเตือน
+        LINE_MESSAGE_LIMIT = 4500  # เผื่อไว้สำหรับข้อความแจ้งเตือน
+        if len(cleaned_text) > LINE_MESSAGE_LIMIT:
+            print(f"⚠️  Warning: Response too long ({len(cleaned_text)} chars), truncating to {LINE_MESSAGE_LIMIT}")
+            cleaned_text = cleaned_text[:LINE_MESSAGE_LIMIT] + "\\n\\n... (ข้อความยาวเกินไป กรุณาสอบถามเฉพาะเจาะจงมากขึ้นค่ะ)"
         
         # เพิ่มคำตอบเข้า session (เก็บ original text)
         session.append({"role": "assistant", "content": response_text})

@@ -1,15 +1,49 @@
+# Environment
 .env
+.env.*
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
 .venv/
 venv/
-.env.*
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Streamlit
 .streamlit/
 
-# OS
-.DS_Store
+# Model Evaluation - Keep structure but ignore large files
+modeleval/results/*.json
+modeleval/results/*.csv
+!modeleval/results/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp

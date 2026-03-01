@@ -1,10 +1,30 @@
-# Docker Compose สำหรับ Phase 1 Upgrade (RAG + Cache)
-# รัน: docker compose -f docker-compose.upgrade.yml up --build
+# Docker Compose for Seoulholic Multi-Platform System
+# Phase 1: RAG + Cache + PostgreSQL + Multi-Platform
+# Run: docker compose up --build
 
 version: '3.8'
 
 services:
-  # Redis Cache (NEW)
+  # PostgreSQL Database (NEW)
+  postgres:
+    image: postgres:16-alpine
+    container_name: seoulholic-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: seoulholic
+      POSTGRES_PASSWORD: seoulholic_password_change_this
+      POSTGRES_DB: seoulholic_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seoulholic"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Redis Cache (Existing)
   redis:
     image: redis:7-alpine
     container_name: seoulholic-redis
@@ -20,58 +40,63 @@ services:
       timeout: 3s
       retries: 3
 
-  # Chatbot with RAG
-  chatbot-rag:
+  # Main Chatbot Service (Updated)
+  chatbot:
     build:
       context: .
-      dockerfile: Dockerfile.upgrade
-    container_name: seoulholic-chatbot-rag
+      dockerfile: Dockerfile
+    container_name: seoulholic-chatbot
     restart: unless-stopped
     ports:
-      - "8501:8501"  # Streamlit
-      - "8000:8000"  # FastAPI (สำหรับ LINE webhook)
+      - "9000:9000"  # Main app
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
+      - DATABASE_URL=postgresql://seoulholic:seoulholic_password_change_this@postgres:5432/seoulholic_db
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app
-      - chroma_data:/app/chroma_db  # Persist vector DB
+      - chroma_data:/app/chroma_db
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    command: uvicorn main_app:app --host 0.0.0.0 --port 9000 --reload
 
-  # Facebook Auto-Scraper (Optional - Phase 3)
+  # Facebook Auto-Scraper (Optional)
   fb-scraper:
     build:
       context: .
-      dockerfile: Dockerfile.upgrade
+      dockerfile: Dockerfile
     container_name: seoulholic-fb-scraper
     restart: unless-stopped
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - REDIS_HOST=redis
+      - DATABASE_URL=postgresql://seoulholic:seoulholic_password_change_this@postgres:5432/seoulholic_db
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app
       - chroma_data:/app/chroma_db
     command: python facebook_integration/auto_updater.py
     depends_on:
+      - postgres
       - redis
-      - chatbot-rag
+      - chatbot
     profiles:
-      - full  # รันเฉพาะเมื่อใช้ --profile full
+      - full  # Run only with: docker compose --profile full up
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
     driver: local
   chroma_data:

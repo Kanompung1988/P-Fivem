@@ -1,0 +1,316 @@
+"""
+Main Application - Unified FastAPI Entry Point
+Handles webhooks from LINE, Facebook, and Admin APIs
+"""
+
+import os
+import sys
+from pathlib import Path
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = Path(__file__).resolve().parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+else:
+    load_dotenv()
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Import handlers
+from platforms.line_handler import LineHandler
+from facebook_integration.comment_webhook import FacebookCommentWebhook
+from admin_dashboard.backend.admin_router import admin_router
+
+# Initialize FastAPI
+app = FastAPI(
+    title="Seoulholic Multi-Platform Chatbot",
+    description="Unified platform for LINE, Facebook, and Instagram + Admin Dashboard",
+    version="2.0.0"
+)
+
+# CORS middleware (for admin dashboard)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files
+static_path = Path(__file__).resolve().parent / "data" / "img"
+if static_path.exists():
+    app.mount("/static/img", StaticFiles(directory=str(static_path)), name="static_images")
+    logger.info(f"✅ Static files mounted: {static_path}")
+
+# Mount Admin Router
+app.include_router(admin_router)
+logger.info("✅ Admin Dashboard APIs mounted")
+
+# Initialize handlers
+try:
+    line_handler = LineHandler()
+    logger.info("✅ LINE Handler ready")
+except Exception as e:
+    logger.error(f"❌ LINE Handler failed: {e}")
+    line_handler = None
+
+try:
+    fb_comment_handler = FacebookCommentWebhook()
+    logger.info("✅ Facebook Comment Handler ready")
+except Exception as e:
+    logger.error(f"❌ Facebook Comment Handler failed: {e}")
+    fb_comment_handler = None
+
+# Initialize database (if available)
+try:
+    from database.connection import init_db, db_manager
+    from database.crud import init_crud_manager
+    
+    init_db(create_tables=True)
+    
+    # Initialize CRUD manager
+    if db_manager:
+        init_crud_manager(db_manager)
+        logger.info("✅ Database and CRUD Manager initialized")
+    else:
+        logger.warning("⚠️  Database manager not available")
+        
+except Exception as e:
+    logger.warning(f"⚠️  Database initialization skipped: {e}")
+
+
+# ============================================================================
+# ROOT & HEALTH CHECK
+# ============================================================================
+
+@app.get("/", response_class=JSONResponse)
+async def root():
+    """Root endpoint - Health check"""
+    return {
+        "status": "running",
+        "service": "Seoulholic Multi-Platform Chatbot",
+        "version": "2.0.0",
+        "platforms": {
+            "line": line_handler is not None,
+            "facebook": fb_comment_handler is not None
+        }
+    }
+
+
+@app.get("/health", response_class=JSONResponse)
+async def health_check():
+    """Detailed health check"""
+    health = {
+        "status": "healthy",
+        "services": {
+            "line": "ok" if line_handler else "unavailable",
+            "facebook": "ok" if fb_comment_handler else "unavailable",
+            "database": "ok",  # TODO: Check actual DB connection
+            "redis": "ok"  # TODO: Check actual Redis connection
+        }
+    }
+    
+    # Check if any critical service is down
+    if not line_handler and not fb_comment_handler:
+        health["status"] = "degraded"
+    
+    return health
+
+
+# ============================================================================
+# LINE WEBHOOK
+# ============================================================================
+
+@app.post("/webhook/line", response_class=PlainTextResponse)
+async def line_webhook(request: Request):
+    """
+    LINE Messaging API Webhook
+    """
+    if not line_handler:
+        raise HTTPException(status_code=503, detail="LINE handler not available")
+    
+    try:
+        result = await line_handler.handle_webhook(request)
+        return "OK"
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LINE webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# FACEBOOK WEBHOOKS
+# ============================================================================
+
+@app.get("/webhook/facebook")
+async def facebook_webhook_verify(
+    request: Request,
+    hub_mode: str = None,
+    hub_verify_token: str = None,
+    hub_challenge: str = None
+):
+    """
+    Facebook Webhook Verification (GET)
+    """
+    if not fb_comment_handler:
+        raise HTTPException(status_code=503, detail="Facebook handler not available")
+    
+    # Get query parameters
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    
+    if not all([mode, token, challenge]):
+        raise HTTPException(status_code=400, detail="Missing parameters")
+    
+    try:
+        result = await fb_comment_handler.handle_verification(mode, token, challenge)
+        
+        if "error" in result:
+            raise HTTPException(status_code=403, detail=result["error"])
+        
+        # Return challenge as plain text
+        return PlainTextResponse(content=result["challenge"])
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Facebook webhook verification error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/webhook/facebook")
+async def facebook_webhook(request: Request):
+    """
+    Facebook Webhook Handler (POST)
+    Handles comments and messenger events
+    """
+    if not fb_comment_handler:
+        raise HTTPException(status_code=503, detail="Facebook handler not available")
+    
+    # Get signature
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    
+    # Get body
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.error(f"Invalid JSON body: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    
+    try:
+        result = await fb_comment_handler.handle_webhook(body, signature)
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logger.error(f"Facebook webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# LEGACY ADMIN STATS (kept for compatibility)
+# ============================================================================
+
+@app.get("/api/stats")
+async def legacy_stats():
+    """
+    Legacy stats endpoint (redirects to new admin API)
+    """
+    from platforms.session_manager import session_manager
+    from facebook_integration.rate_limiter import rate_limiter
+    
+    return {
+        "sessions": session_manager.get_session_stats(),
+        "rate_limiter": rate_limiter.get_stats(),
+        "webhooks": {
+            "line": {
+                "status": "active" if line_handler else "inactive"
+            },
+            "facebook": {
+                "status": "active" if fb_comment_handler else "inactive"
+            }
+        },
+        "note": "This endpoint is deprecated. Use /api/admin/analytics/stats instead"
+    }
+
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={"error": "Not found", "path": request.url.path}
+    )
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    logger.error(f"Internal error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error"}
+    )
+
+
+# ============================================================================
+# STARTUP & SHUTDOWN
+# ============================================================================
+
+@app.on_event("startup")
+async def startup_event():
+    """Startup tasks"""
+    logger.info("=" * 80)
+    logger.info("🚀 Seoulholic Multi-Platform Chatbot Starting...")
+    logger.info("=" * 80)
+    logger.info(f"LINE Handler: {'✅ Ready' if line_handler else '❌ Not available'}")
+    logger.info(f"Facebook Handler: {'✅ Ready' if fb_comment_handler else '❌ Not available'}")
+    logger.info("=" * 80)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown tasks"""
+    logger.info("🛑 Shutting down...")
+    
+    # Close database connections
+    try:
+        from database.connection import db_manager
+        db_manager.close()
+    except:
+        pass
+
+
+# ============================================================================
+# RUN (for local development)
+# ============================================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    port = int(os.environ.get('PORT', 9000))
+    
+    logger.info(f"Starting server on port {port}...")
+    
+    uvicorn.run(
+        "main_app:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,  # Auto-reload on code changes
+        log_level="info"
+    )

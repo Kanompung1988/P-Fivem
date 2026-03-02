@@ -252,14 +252,18 @@ class LineHandler(BaseHandler):
             return None
     
     def _get_public_image_url(self, image_name: str) -> Optional[str]:
-        """Convert image filename to public URL"""
-        ngrok_url = os.getenv("NGROK_URL")
-        public_url = os.getenv("PUBLIC_URL")
-        base_url = ngrok_url or public_url
-        
-        if base_url:
-            return f"{base_url}/static/img/{image_name}"
-        return None
+        """Convert image filename to public URL — only if file exists locally"""
+        # Check file exists in data/img/
+        img_path = Path(__file__).resolve().parents[1] / "data" / "img" / image_name
+        if not img_path.exists():
+            logger.debug(f"Image file not found, skipping: {img_path}")
+            return None
+
+        base_url = os.getenv("NGROK_URL") or os.getenv("PUBLIC_URL")
+        if not base_url:
+            return None
+        base_url = base_url.rstrip("/")
+        return f"{base_url}/static/img/{image_name}"
     
     def _save_message_to_db(self, user_id: str, message: str, sender_type: str):
         """Save message to database"""

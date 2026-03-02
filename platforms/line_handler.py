@@ -273,8 +273,9 @@ class LineHandler(BaseHandler):
             logger.warning("No PUBLIC_URL or NGROK_URL set — cannot serve images")
             return None
         base_url = base_url.rstrip("/")
-        url = f"{base_url}/static/img/{image_name}"
-        logger.info(f"Image URL: {url}")
+        # LINE only accepts JPEG — use conversion endpoint
+        url = f"{base_url}/img-jpeg/{image_name}"
+        logger.info(f"Image URL (JPEG): {url}")
         return url
     
     def _save_message_to_db(self, user_id: str, message: str, sender_type: str):

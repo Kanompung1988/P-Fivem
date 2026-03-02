@@ -5,9 +5,10 @@ Handles webhooks from LINE, Facebook, and Admin APIs
 
 import os
 import sys
+import io
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -53,6 +54,29 @@ static_path = Path(__file__).resolve().parent / "data" / "img"
 if static_path.exists():
     app.mount("/static/img", StaticFiles(directory=str(static_path)), name="static_images")
     logger.info(f"✅ Static files mounted: {static_path}")
+
+# JPEG conversion endpoint for LINE (LINE only supports JPEG, not PNG)
+@app.get("/img-jpeg/{image_name}")
+async def serve_image_as_jpeg(image_name: str):
+    """Serve PNG images converted to JPEG — required by LINE Messaging API"""
+    try:
+        from PIL import Image
+        img_path = Path(__file__).resolve().parent / "data" / "img" / image_name
+        # Also try with .png extension if no extension given
+        if not img_path.exists() and not image_name.endswith('.png'):
+            img_path = Path(__file__).resolve().parent / "data" / "img" / (image_name + '.png')
+        if not img_path.exists():
+            raise HTTPException(status_code=404, detail=f"Image not found: {image_name}")
+        img = Image.open(img_path).convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=85)
+        buf.seek(0)
+        return StreamingResponse(buf, media_type='image/jpeg')
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Image conversion error: {e}")
+        raise HTTPException(status_code=500, detail="Image conversion failed")
 
 # Mount Admin Router
 app.include_router(admin_router)

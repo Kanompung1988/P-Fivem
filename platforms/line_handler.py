@@ -265,14 +265,17 @@ class LineHandler(BaseHandler):
         # Check file exists in data/img/
         img_path = Path(__file__).resolve().parents[1] / "data" / "img" / image_name
         if not img_path.exists():
-            logger.debug(f"Image file not found, skipping: {img_path}")
+            logger.warning(f"Image file not found locally: {img_path}")
             return None
 
         base_url = os.getenv("NGROK_URL") or os.getenv("PUBLIC_URL")
         if not base_url:
+            logger.warning("No PUBLIC_URL or NGROK_URL set — cannot serve images")
             return None
         base_url = base_url.rstrip("/")
-        return f"{base_url}/static/img/{image_name}"
+        url = f"{base_url}/static/img/{image_name}"
+        logger.info(f"Image URL: {url}")
+        return url
     
     def _save_message_to_db(self, user_id: str, message: str, sender_type: str):
         """Save message to database"""

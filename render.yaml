@@ -4,4 +4,4 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    autoDeploy: false
+    autoDeploy: true

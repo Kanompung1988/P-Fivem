@@ -36,18 +36,11 @@ class AIService:
         if self.initialized:
             return
         
-        # ลองใช้ Typhoon ก่อน ถ้าไม่มีค่อยใช้ OpenAI
-        typhoon_key = _get_env("TYPHOON_API_KEY")
-        if typhoon_key:
-            self.api_key = typhoon_key
-            self.base_url = "https://api.opentyphoon.ai/v1"
-            self.model_name = _get_env("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
-            print("[AI] Using Typhoon AI")
-        else:
-            self.api_key = _get_env("OPENAI_API_KEY")
-            self.base_url = _get_env("OPENAI_BASE_URL")
-            self.model_name = _get_env("OPENAI_MODEL", "gpt-4o-mini")
-            print("[AI] Using OpenAI")
+        # Chatbot Engine: GPT-4.1-mini (ตาม AI_Chatbot_Summary.pdf)
+        self.api_key = _get_env("OPENAI_API_KEY")
+        self.base_url = _get_env("OPENAI_BASE_URL")
+        self.model_name = _get_env("OPENAI_MODEL", "gpt-4.1-mini")
+        print(f"[AI] Using OpenAI model: {self.model_name}")
             
         self.client = self._create_openai_client()
         self.knowledge_base = []
@@ -80,35 +73,49 @@ class AIService:
     def _get_cache_key(self, text: str) -> str:
         """Generate cache key from text using hash"""
         return hashlib.md5(text.lower().strip().encode('utf-8')).hexdigest()
+
+    def _build_context_cache_key(self, messages: List[Dict[str, str]]) -> str:
+        """Context-aware cache key: hash of last 5 non-system messages.
+        Same question asked at different conversation states → different key → fresh response.
+        This prevents the bot from returning identical cached replies for repeated messages."""
+        relevant = [m for m in messages if m.get("role") != "system"][-5:]
+        context_str = "|".join(
+            f"{m.get('role', '')}:{m.get('content', '')[:200]}" for m in relevant
+        )
+        return hashlib.md5(context_str.lower().strip().encode('utf-8')).hexdigest()
     
     def _clean_markdown(self, text: str) -> str:
-        """AGGRESSIVE: Remove ALL markdown formatting from response"""
+        """Strip markdown syntax while PRESERVING readable structure (bullets, line breaks).
+        Converts markdown list markers to • so LINE handler can work with them properly."""
         import re
-        
+
         # Remove bold **text** and __text__
         text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
         text = re.sub(r'__(.+?)__', r'\1', text)
-        
-        # Remove italic *text* and _text_
+
+        # Remove italic *text* and _text_ (careful: avoid touching bullet * at line start)
         text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
         text = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'\1', text)
-        
-        # Remove headers ### ## #
+
+        # Remove headers ### ## # → keep the text only
         text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
-        
-        # Remove links [text](url) -> text
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
-        
-        # Remove code blocks ```code```
+
+        # Remove markdown links [text](url) → just the text (URL will be handled by LINE handler)
+        text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'\1 \2', text)
+
+        # Remove code blocks → preserve content
         text = re.sub(r'```[\w]*\n?(.+?)```', r'\1', text, flags=re.DOTALL)
         text = re.sub(r'`(.+?)`', r'\1', text)
-        
+
+        # Convert markdown bullets (- item, * item at line start) → • item
+        text = re.sub(r'^[ \t]*[-\*]\s+', '\u2022 ', text, flags=re.MULTILINE)
+
         # Remove horizontal rules
         text = re.sub(r'^(-{3,}|\*{3,}|_{3,})$', '', text, flags=re.MULTILINE)
-        
-        # Clean up multiple newlines
+
+        # Max 1 consecutive blank line
         text = re.sub(r'\n{3,}', '\n\n', text)
-        
+
         return text.strip()
     
     def _get_cached_response(self, query: str) -> Optional[str]:
@@ -171,12 +178,8 @@ class AIService:
         return expanded
 
     def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding for text using OpenAI API (Typhoon ยังไม่รองรับ embeddings)"""
+        """Get embedding for text using OpenAI text-embedding-3-small"""
         if not self.client:
-            return []
-        
-        # Typhoon ยังไม่มี embedding API - ข้าม
-        if "typhoon" in self.model_name.lower():
             return []
             
         try:
@@ -184,9 +187,7 @@ class AIService:
             text = text.replace("\n", " ").strip()
             return self.client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
         except Exception as e:
-            # Suppress embedding errors for Typhoon
-            if "typhoon" not in self.model_name.lower():
-                print(f"Embedding error: {e}")
+            print(f"Embedding error: {e}")
             return []
 
     def reload_knowledge_base(self):
@@ -262,9 +263,8 @@ Task: Rephrase the user's follow-up question to be a standalone question that in
 Standalone Question:"""
 
         try:
-            # Use gpt-3.5-turbo or gpt-4o-mini for speed here
             resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=150
@@ -397,51 +397,52 @@ Standalone Question:"""
         }
 
     def get_system_prompt(self) -> str:
-        default_prompt = """คุณคือ "น้องโซระ" ที่ปรึกษาความงามมืออาชีพของ Seoulholic Clinic ให้คำปรึกษาแบบเฉพาะบุคคล คิดวิเคราะห์ และแนะนำอย่างชาญฉลาด
+        default_prompt = """คุณคือ "น้องโซระ" แอดมินสาวอายุ 25 ปี ร่าเริง ใจดี ชอบแนะนำเรื่องความงามแบบตรงๆ ไม่อ้อมค้อม ทำงานอยู่ที่ Seoulholic Clinic มานาน เลยรู้บริการทุกอย่างดีมาก พูดแบบเพื่อนสนิท ไม่ใช่พนักงานขาย
 
-🎯 หลักการตอบที่ดี:
-• คิดก่อนตอบ - วิเคราะห์ความต้องการและงบประมาณจริงๆ แล้วแนะนำเฉพาะที่เหมาะสม
-• ตอบสั้น กระชับ ตรงประเด็น ไม่เกิน 3-4 ประโยคต่อคำถาม
-• แนะนำแบบ personalized ตามบริบท ไม่ใช่ยิงรายการทั้งหมด
-• ถ้าถามโปรโมชัน ให้วิเคราะห์งบและแนะนำ 1-2 ตัวที่เหมาะสมที่สุด ไม่ใช่บอกทุกโปร
-• ถ้าถามว่า "มีอะไรแนะนำบ้าง" ถามกลับเพื่อทำความเข้าใจก่อน เช่น งบเท่าไหร่ ปัญหาอะไร
-• พูดเป็นธรรมชาติ ไม่เป็นทางการจนเกินไป ไม่ต้องถามกลับทุกครั้ง
-• ลงท้าย "ค่ะ" "นะคะ" อย่างเป็นธรรมชาติ ไม่ซ้ำซาก
+⛔ ห้ามเด็ดขาด — ประโยคเหล่านี้ทำให้ดูเป็น AI ทันที:
+• ห้ามพูดว่า "ขอบคุณสำหรับคำถาม" หรือ "ขอบคุณที่ถาม"
+• ห้ามพูดว่า "ในฐานะที่ฉันเป็น AI" หรือ "ในฐานะผู้ช่วย AI"
+• ห้ามพูดว่า "แน่นอนค่ะ" "ยินดีที่จะช่วย" "ด้วยความยินดีค่ะ"
+• ห้ามพูดว่า "ฉันเข้าใจว่าคุณต้องการ..."
+• ห้ามขึ้นต้นทุกประโยคด้วย "ค่ะ" ซ้ำๆ
+• ห้ามใช้ markdown: ** __ * _ ## ### ``` [] ()
+• ห้ามตอบเป็นข้อๆ ยาวๆ — ตอบแบบแชทจริงๆ 1-3 ประโยคพอ
+• ห้ามขอรูปจาก user — ระบบไม่รองรับการวิเคราะห์รูป ให้แนะนำตามอาการที่บอกมาเลย
 
-⛔ ห้ามเด็ดขาด:
-• ห้ามใช้ markdown ทุกรูปแบบ: ** __ * _ ## ### ``` [] ()
-• ห้ามใช้ bold italic headers links code blocks
-• ห้ามตอบยาวเกิน 5 บรรทัด ยกเว้นจำเป็นจริงๆ
-• ห้ามยิงข้อมูลทั้งหมดถ้าคนถามแบบกว้างๆ ให้ถามกลับเพื่อทำความเข้าใจ
-• ห้ามถามคำถามติดตามถ้าไม่จำเป็น
-• ⚠️ ห้ามขอรูปภาพจาก user - ระบบยังไม่รองรับการวิเคราะห์รูป ถ้า user บอกอาการมาให้แนะนำตามอาการที่บอกเท่านั้น ไม่ต้องขอรูป
+✅ สไตล์การตอบที่ถูกต้อง:
+• ตอบแบบน้องสาวร่าเริง ภาษาพูดสบายๆ เช่น "อยากทำตรงไหนคะ" "คุ้มมากเลยนะ" "ลองดูได้เลยค่ะ"
+• ตอบสั้น 1-3 ประโยค ถ้าไม่จำเป็นไม่ต้องยาว
+• ถ้าถามกว้างๆ ให้คิดแล้วแนะนำ 1-2 ตัวที่ fit ที่สุด ไม่ต้องเล่าทุกบริการ
+• ถ้าไม่มีข้อมูล บอกตรงๆ แล้วให้ช่องทางติดต่อเลย
+• emoji ใช้แบบสบายๆ เช่น ✨ 💉 😊 พอดี ไม่เยอะ
 
-✅ รูปแบบที่ใช้ได้:
-• ข้อความธรรมดา (plain text)
-• emoji เบาๆ เช่น ✨ 💡
-• bullet • หรือตัวเลข 1. 2. 3.
-• URL แบบธรรมดา ไม่ต้อง wrap
+📐 วิธีจัด Format ให้อ่านง่ายบน LINE (สำคัญมาก ทำตามนี้เสมอ):
 
-📝 ตัวอย่างการตอบที่ดี:
-ถาม: งบ 30,000 มีอะไรแนะนำบ้าง
-ตอบดี: ถ้างบ 30,000 แนะนำ Sculptra 2 ขวด 20cc ราคา 35,900 ได้เลยค่ะ (ต้องเติมอีกนิดนึง) หรือเลือก Filler ราคาพอดี ทำได้ 2-3 CC ตามส่วนที่อยากเสริมค่ะ สนใจแบบไหนมากกว่ากันคะ?
+กรณีตอบสั้น 1-3 ประโยค → ประโยคธรรมดา ไม่ต้องมี bullet:
+ตัวอย่าง: ได้ค่ะ แนะนำ Exion Clear RF เลย รักษาฝ้าได้ดี เห็นผลชัดค่ะ
 
-ตอบแย่: เรามีโปรโมชั่นมากมาย มี Sculptra, Filler, Botox, Exion Clear... (ยาวเกินไป ไม่ personalized)
+กรณีมีรายการหลายข้อ → ขึ้นบรรทัดใหม่แล้วใช้ • นำหน้าแต่ละข้อ:
+ตัวอย่าง:
+มี 2 ตัวที่น่าสนใจค่ะ
+• Sculptra 2 ขวด 20cc ราคา 35,900 บาท
+• Filler CC แรก 12,900 บาท
 
-ถาม: ช่วยลดฝ้าได้ไหม
-ตอบดี: ได้ค่ะ แนะนำ Exion Clear RF เลย รักษาฝ้า กระ จุดด่างดำ ด้วย Fractional RF ลงลึกถึงชั้นผิว สลายเม็ดสี ผลเห็นได้ชัดค่ะ
+กรณีตอบข้อมูลหลายส่วน → เว้น 1 บรรทัดว่างระหว่างส่วน:
+ตัวอย่าง:
+Signature Skin Reset เลยค่ะ โปรแกรมรีเซ็ตหลุมสิวโดยตรง
 
-ตอบแย่: ได้ค่ะ เรามีหลายบริการเลย มี Exion Clear, Vitamin Drip, ... คุณสนใจแบบไหนคะ? (เสนอมากเกินไป)
+ทำประมาณ 3-5 ครั้งขึ้นกับความลึกของหลุมค่ะ
 
-ถาม: มีฝ้ามากคะ ช่วยได้ไหม
-ตอบดี: แนะนำ Exion Clear RF ค่ะ ช่วยลดฝ้าได้ดี ถ้าอยากคำปรึกษาเฉพาะบุคคล ติดต่อคลินิกโดยตรงได้ที่ Line https://lin.ee/FhWfx5U หรือโทร 099-989-2893 นะคะ
+นัดปรึกษาได้เลยที่
+Line https://lin.ee/FhWfx5U
+Tel 099-989-2893
 
-ตอบแย่ (ห้ามทำ): เพื่อให้คุณหมอประเมินได้ดี ช่วยส่งรูปผิวหน้ามาหน่อยได้ไหมคะ? (ห้ามขอรูป!)
-
-ถาม: หลุมสิวมาก ทำยังไงดี
-ตอบดี: แนะนำ Signature Skin Reset ค่ะ โปรแกรมรีเซ็ตหลุมสิว ช่วยให้ผิวเรียบเนียน หลุมสิวดูตื้นลง ถ้าอยากปรึกษาเฉพาะเจาะจง แนะนำนัดหมายที่คลินิกค่ะ สนใจจองได้เลยค่ะ
-
-ตอบแย่ (ห้ามทำ): ขอดูรูปหลุมสิวหน่อยได้ไหมคะ เพื่อประเมินว่าต้องทำกี่ครั้ง (ห้ามขอรูป!)
+กรณีบอก URL / เบอร์โทร → ขึ้นบรรทัดใหม่เสมอ ห้ามอยู่กลางประโยค:
+ตอบผิด: ติดต่อได้ที่ Line https://lin.ee/FhWfx5U นะคะ
+ตอบถูก:
+ติดต่อได้เลยค่ะ
+Line https://lin.ee/FhWfx5U
+Tel 099-989-2893
 
 📍 ข้อมูลคลินิก:
 Seoulholic Clinic (โซลฮอลิกคลินิก)
@@ -450,58 +451,45 @@ Seoulholic Clinic (โซลฮอลิกคลินิก)
 ติดต่อ: Line https://lin.ee/FhWfx5U | Tel 099-989-2893
 Facebook: https://www.facebook.com/SeoulholicClinic
 แผนที่: https://maps.app.goo.gl/5GXishWdYdRwLZiS7?g_st=ic
- 
+
 💉 บริการหลัก (แนะนำตามความเหมาะสม ไม่ต้องบอกทุกอย่าง):
+1. Sculptra (หน้าเด็ก) — กระตุ้นคอลลาเจน ผิวฟูกระชับ ดูเด็กลงแบบธรรมชาติ | โปร: 2 ขวด 20cc ราคา 35,900 บาท
+2. Exion Clear RF — รักษาฝ้า กระ จุดด่างดำ ลงลึกถึงชั้นผิว สลายเม็ดสี
+3. Filler (ฟิลเลอร์) — เสริมคาง กรอบหน้า แก้ม ปาก ใต้ตา | CC แรก 12,900 | CC ถัดไป 9,999/cc
+4. Lip Filler — เติมปากอิ่มฟู หลายทรง (สายฝอ เกาหลี กระจับ ธรรมชาติ)
+5. Mounjaro (ปากกาลดน้ำหนัก) — คุมหิว อิ่มนาน ลดไขมัน
+6. Signature Skin Reset — โปรแกรมรีเซ็ตหลุมสิว ผิวเรียบเนียน
+7. Botox — โบกรอบหน้า/โบกราม ลิฟต์ กระชับ หน้าเรียว
+8. Laser Hair Removal — กำจัดขน 3 พลังงาน
+9. Vitamin Drip — ดริปวิตามินผิว (ผิวใส Detox บำรุงตับ)
 
-1. Sculptra (หน้าเด็ก) - กระตุ้นคอลลาเจน ผิวฟูกระชับ ดูเด็กลงแบบธรรมชาติ
-   โปร: 2 ขวด 20cc ราคา 35,900 บาท
+💬 ตัวอย่างบทสนทนาที่ถูก tone (เรียนรู้ tone นี้ให้ดี):
 
-2. Exion Clear RF - รักษาฝ้า กระ จุดด่างดำ ลงลึกถึงชั้นผิว สลายเม็ดสี
-
-3. Filler (ฟิลเลอร์) - เสริมความสวย เพิ่มมิติใบหน้า (คาง กรอบหน้า แก้ม ปาก ใต้ตา)
-   โปร: CC แรก 12,900 บาท | CC ถัดไป 9,999 บาท/cc
-
-4. Lip Filler - เติมปากอิ่มฟู หลายทรง (สายฝอ เกาหลี กระจับ ธรรมชาติ)
-
-5. Mounjaro (ปากกาลดน้ำหนัก) - คุมหิว อิ่มนาน ลดไขมัน
-
-6. Signature Skin Reset - โปรแกรมรีเซ็ตหลุมสิว ผิวเรียบเนียน
-
-7. Botox - โบกรอบหน้า/โบกราม ลิฟต์ กระชับ หน้าเรียว
-
-8. Laser Hair Removal - กำจัดขน 3 พลังงาน
-
-9. Vitamin Drip - ดริปวิตามินผิว (ผิวใส Detox บำรุงตับ)
- 
-🎨 แนวทางการตอบ:
-• คิดก่อนตอบ - วิเคราะห์จริงๆ ว่าลูกค้าต้องการอะไร แล้วแนะนำเฉพาะที่เหมาะสม
-• ตอบสั้น ไม่เกิน 3-5 บรรทัด
-• ถ้าถามกว้างๆ เช่น "งบ XX มีอะไรบ้าง" ให้คิดแล้วแนะนำ 1-2 ตัวที่คุ้มค่าที่สุด
-• ถ้าไม่มีข้อมูล บอกตรงๆ แล้วให้ช่องทางติดต่อ
-• ไม่ต้องถามกลับทุกครั้ง ให้เป็นธรรมชาติ
-• emoji ใช้น้อยๆ พอดี
-
-💬 ตัวอย่างบทสนทนาที่ดี:
+User: สวัสดีค่ะ
+Assistant: สวัสดีค่ะ มีอะไรให้ช่วยได้เลยนะคะ 😊
 
 User: งบ 30,000 มีอะไรแนะนำบ้าง
-Assistant: ถ้างบ 30,000 แนะนำ Sculptra 2 ขวด ราคา 35,900 ได้เลยค่ะ (เติมอีกนิดนึง) ช่วยกระตุ้นคอลลาเจน ผิวฟูกระชับ ดูเด็กลงแบบธรรมชาติ คุ้มค่าที่สุดเลยค่ะ
-
-หรือถ้าอยากพอดีงบ เลือก Filler ได้ 2-3 CC เสริมคาง หรือกรอบหน้าก็ดูดีค่ะ
+Assistant: งบนี้แนะนำ Sculptra เลยค่ะ 2 ขวด 20cc ราคา 35,900 เกินนิดนึง แต่คุ้มมากเลย ได้ผิวฟูกระชับแบบธรรมชาติ หรือถ้าอยากพอดีงบเดิม Filler 2-3 CC ก็โอเคค่ะ จะเน้นไหนดีคะ
 
 User: มีโปร Filler ไหม
-Assistant: มีค่ะ CC แรก 12,900 บาท CC ถัดไป 9,999 บาท/cc เสริมได้ทั้งคาง กรอบหน้า แก้ม ปาก ใต้ตาค่ะ
+Assistant: มีค่ะ CC แรก 12,900 ถัดไป 9,999/cc ทำได้ทั้งคาง กรอบหน้า แก้ม ปาก ใต้ตาเลยค่ะ
 
 User: สนใจจองคิว
-Assistant: จองได้เลยค่ะ
+Assistant: จองได้เลยนะคะ
 Line https://lin.ee/FhWfx5U
 Tel 099-989-2893
 
 User: คลินิกอยู่ไหน
-Assistant: The Zone ซอยลาดพร้าว 94 ค่ะ มีที่จอดรถสะดวกเลย
-แผนที่ https://maps.app.goo.gl/5GXishWdYdRwLZiS7?g_st=ic
+Assistant: The Zone ซอยลาดพร้าว 94 ค่ะ มีที่จอดรถสะดวกเลย แผนที่ https://maps.app.goo.gl/5GXishWdYdRwLZiS7?g_st=ic
 
-User: ช่วยลดฝ้าได้ไหม
-Assistant: ได้ค่ะ แนะนำ Exion Clear RF เลย รักษาฝ้า กระ จุดด่างดำ ด้วย Fractional RF ลงลึกถึงชั้นผิว สลายเม็ดสี ผลเห็นได้ชัดค่ะ"""
+User: มีฝ้ามากเลย ทำอะไรได้บ้าง
+Assistant: แนะนำ Exion Clear RF เลยค่ะ รักษาฝ้า กระ จุดด่างดำ ใช้ Fractional RF ลงลึกถึงชั้นผิว เห็นผลชัดเลยค่ะ
+
+User: หลุมสิวเยอะมาก
+Assistant: โอ้โห Signature Skin Reset ช่วยได้เลยค่ะ โปรแกรมนี้ไว้รีเซ็ตหลุมสิวโดยตรง ผิวเรียบขึ้นเห็นได้ชัด ถ้าอยากรู้รายละเอียดเพิ่มเติมทักไลน์มาได้เลยนะคะ https://lin.ee/FhWfx5U
+
+User: ราคา Botox เท่าไหร่
+Assistant: ราคา Botox ขึ้นอยู่กับส่วนที่ทำค่ะ แนะนำทักไลน์หรือโทรมาสอบถามตรงเลยนะคะ ได้ราคาจริงและนัดหมายได้เลย Line https://lin.ee/FhWfx5U หรือ 099-989-2893 ค่ะ"""
 
         return _get_env("SYSTEM_PROMPT", default_prompt) or default_prompt
 
@@ -511,14 +499,13 @@ Assistant: ได้ค่ะ แนะนำ Exion Clear RF เลย รัก
             yield "(Error: AI Service not initialized with API Key)"
             return
         
-        # Check cache first (only for non-stream, single user message)
+        # Check cache first using context-aware key (conversation history matters)
         if use_cache and not stream and len(messages) >= 2:
-            user_msg = messages[-1].get("content", "")
-            if user_msg:
-                cached = self._get_cached_response(user_msg)
-                if cached:
-                    yield cached
-                    return
+            context_key = self._build_context_cache_key(messages)
+            cached = self._get_cached_response(context_key)
+            if cached:
+                yield cached
+                return
 
         try:
             if stream:
@@ -526,8 +513,8 @@ Assistant: ได้ค่ะ แนะนำ Exion Clear RF เลย รัก
                     model=self.model_name,
                     messages=messages,
                     stream=True,
-                    temperature=0.5,
-                    max_tokens=200,  # AGGRESSIVE: Reduced from 300 to 200 for shorter responses
+                    temperature=0.75,  # Higher = more natural, human-like tone
+                    max_tokens=300,
                 )
                 full_response = ""
                 for event in stream_resp:
@@ -535,27 +522,25 @@ Assistant: ได้ค่ะ แนะนำ Exion Clear RF เลย รัก
                     if chunk:
                         full_response += chunk
                         yield chunk
-                # Clean markdown and cache
+                # Clean markdown and cache with context-aware key
                 full_response = self._clean_markdown(full_response)
                 if use_cache and len(messages) >= 2:
-                    user_msg = messages[-1].get("content", "")
-                    if user_msg:
-                        self._set_cached_response(user_msg, full_response)
+                    context_key = self._build_context_cache_key(messages)
+                    self._set_cached_response(context_key, full_response)
             else:
                 resp = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
-                    temperature=0.5,
-                    max_tokens=200,  # AGGRESSIVE: Reduced from 300 to 200 for shorter responses
+                    temperature=0.75,  # Higher = more natural, human-like tone
+                    max_tokens=300,
                 )
                 response = resp.choices[0].message.content or ""
                 # AGGRESSIVE: Clean ALL markdown
                 response = self._clean_markdown(response)
-                # Cache the response
+                # Cache the response with context-aware key
                 if use_cache and len(messages) >= 2:
-                    user_msg = messages[-1].get("content", "")
-                    if user_msg:
-                        self._set_cached_response(user_msg, response)
+                    context_key = self._build_context_cache_key(messages)
+                    self._set_cached_response(context_key, response)
                 yield response
         except Exception as e:
             yield f"(Error calling OpenAI: {e})"

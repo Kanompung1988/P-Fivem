@@ -21,7 +21,7 @@
 ```env
 # OpenAI (เดิม)
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-4.1-mini
 
 # Facebook (เดิม)
 FB_ACCESS_TOKEN=...

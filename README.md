@@ -131,10 +131,8 @@ seoulholic-chatbot/
 LINE_CHANNEL_SECRET=your_line_secret
 LINE_CHANNEL_ACCESS_TOKEN=your_line_token
 
-# AI Model (Choose one or more)
-TYPHOON_API_KEY=your_typhoon_key      # Recommended
-DEEPSEEK_API_KEY=your_deepseek_key    # Alternative
-OPENAI_API_KEY=your_openai_key        # Fallback
+# AI Model (Required)
+OPENAI_API_KEY=your_openai_key        # Required — Chatbot Engine: gpt-4.1-mini
 ```
 
 See [modeleval/API_KEYS_GUIDE.md](modeleval/API_KEYS_GUIDE.md) for detailed setup.
@@ -195,7 +193,7 @@ python app.py
 git push heroku main
 
 # Set environment variables
-heroku config:set TYPHOON_API_KEY=your_key
+heroku config:set OPENAI_API_KEY=your_key
 heroku config:set LINE_CHANNEL_SECRET=your_secret
 ```
 

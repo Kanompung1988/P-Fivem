@@ -43,10 +43,8 @@ Create `.env` file in project root:
 LINE_CHANNEL_SECRET=your_line_channel_secret
 LINE_CHANNEL_ACCESS_TOKEN=your_line_access_token
 
-# AI Models (Choose one or more)
-TYPHOON_API_KEY=your_typhoon_key       # Recommended for Thai
-DEEPSEEK_API_KEY=your_deepseek_key     # Alternative
-OPENAI_API_KEY=your_openai_key         # Fallback
+# AI Model (Required)
+OPENAI_API_KEY=your_openai_key         # Required — Chatbot Engine: gpt-4.1-mini
 
 # Optional (for testing)
 GROQ_API_KEY=your_groq_key
@@ -54,8 +52,6 @@ GOOGLE_API_KEY=your_google_key
 ```
 
 **Get API Keys:**
-- Typhoon: https://opentyphoon.ai
-- DeepSeek: https://platform.deepseek.com
 - OpenAI: https://platform.openai.com
 
 See [API_KEYS_GUIDE.md](modeleval/API_KEYS_GUIDE.md) for detailed setup.
@@ -87,7 +83,7 @@ python report_generator.py results/benchmark_summary_*.json
 cat > test_local.py << 'EOF'
 from core.ai_service import AIService
 
-ai = AIService(model_provider="typhoon")
+ai = AIService()
 result = ai.get_response("โบท็อกซ์ราคาเท่าไหร่คะ")
 print(result['response'])
 EOF
@@ -200,7 +196,7 @@ pip install -r requirements.txt
 cat .env
 
 # Test API key
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('TYPHOON_API_KEY'))"
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('OPENAI_API_KEY'))"
 ```
 
 ### Issue: Benchmark fails

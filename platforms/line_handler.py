@@ -268,7 +268,7 @@ class LineHandler(BaseHandler):
             logger.warning(f"Image file not found locally: {img_path}")
             return None
 
-        base_url = os.getenv("NGROK_URL") or os.getenv("PUBLIC_URL")
+        base_url = os.getenv("PUBLIC_URL") or os.getenv("NGROK_URL")
         if not base_url:
             logger.warning("No PUBLIC_URL or NGROK_URL set — cannot serve images")
             return None

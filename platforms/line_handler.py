@@ -120,16 +120,25 @@ class LineHandler(BaseHandler):
                 # Add image if available (only if public URL is configured)
                 if relevant_image:
                     image_url = self._get_public_image_url(relevant_image)
-                    if image_url and image_url.startswith('https://'):
-                        messages.append(ImageMessage(
-                            original_content_url=image_url,
-                            preview_image_url=image_url
-                        ))
+                    if image_url:
+                        try:
+                            line_bot_api.reply_message_with_http_info(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=messages + [ImageMessage(
+                                        original_content_url=image_url,
+                                        preview_image_url=image_url
+                                    )]
+                                )
+                            )
+                            return
+                        except Exception as img_err:
+                            logger.warning(f"Image send failed ({img_err}), sending text only")
                 
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=messages[:5]  # LINE limit: 5 messages
+                        messages=messages
                     )
                 )
         

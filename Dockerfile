@@ -21,12 +21,12 @@ COPY . .
 # Create directories
 RUN mkdir -p /app/chroma_db /app/data/text
 
-# Expose ports
-EXPOSE 8501 8000
+# Expose port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8501 || exit 1
+  CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Default command (Streamlit)
-CMD ["streamlit", "run", "streamlit_demo/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Default command (FastAPI via uvicorn)
+CMD uvicorn main_app:app --host 0.0.0.0 --port ${PORT:-8000}

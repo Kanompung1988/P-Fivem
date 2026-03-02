@@ -268,7 +268,7 @@ class LineHandler(BaseHandler):
             from database.connection import db_manager
             
             # Check if database is available
-            if not db_manager or not db_manager.is_connected():
+            if not db_manager or not db_manager._engine:
                 return
             
             crud = get_crud()
@@ -310,8 +310,3 @@ class LineHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"❌ Error saving message to database: {e}")
-        base_url = ngrok_url or public_url
-        
-        if base_url and image_name:
-            return f"{base_url}/static/img/{image_name}"
-        return None

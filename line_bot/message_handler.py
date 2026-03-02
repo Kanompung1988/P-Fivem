@@ -25,50 +25,65 @@ class LineMessageHandler:
     
     def _clean_markdown_for_line(self, text: str) -> str:
         """
-        แปลง Markdown เป็น plain text ที่อ่านง่ายสำหรับ LINE
-        LINE ไม่รองรับ Markdown formatting ต้องแปลงเป็น plain text
-        
-        Args:
-            text: ข้อความที่มี Markdown
-            
-        Returns:
-            str: Plain text ที่อ่านง่าย
+        Final markdown → LINE plain text pass.
+        By this point _clean_markdown() in ai_service has already converted
+        markdown bullets to • and stripped bold/italic. This handles anything
+        that slipped through and then calls _post_process_for_readability.
         """
         import re
-        
-        # แปลง bold **text** หรือ __text__ เป็น text ธรรมดา
+
+        # Strip any stray bold/italic that slipped through
         text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
         text = re.sub(r'__(.+?)__', r'\1', text)
-        
-        # แปลง italic *text* หรือ _text_ เป็น text ธรรมดา
-        text = re.sub(r'\*(.+?)\*', r'\1', text)
-        text = re.sub(r'_(.+?)_', r'\1', text)
-        
-        # แปลง headers (# ## ###) เป็นข้อความธรรมดาพร้อม emoji
-        text = re.sub(r'^###\s+(.+)$', r'▪️ \1', text, flags=re.MULTILINE)
-        text = re.sub(r'^##\s+(.+)$', r'◾️ \1', text, flags=re.MULTILINE)
-        text = re.sub(r'^#\s+(.+)$', r'━━━\n\1\n━━━', text, flags=re.MULTILINE)
-        
-        # แปลง links [text](url) เป็น text (url)
-        text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'\1\n👉 \2', text)
-        
-        # แปลง bullet list - item เป็น • item
-        text = re.sub(r'^-\s+', '• ', text, flags=re.MULTILINE)
-        text = re.sub(r'^\*\s+', '• ', text, flags=re.MULTILINE)
-        
-        # แปลง numbered list 1. item เป็น 1. item (เก็บไว้)
-        # ไม่ต้องทำอะไร
-        
-        # ลบ code blocks ```code``` เหลือแค่ code
+        text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
+        text = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'\1', text)
+
+        # Convert any remaining markdown headers → bullet
+        text = re.sub(r'^#{1,6}\s+(.+)$', r'• \1', text, flags=re.MULTILINE)
+
+        # Convert remaining markdown links [text](url) → text\nurl
+        text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'\1\n\2', text)
+
+        # Convert stray markdown bullets that weren't caught earlier
+        text = re.sub(r'^[ \t]*[-\*]\s+', '\u2022 ', text, flags=re.MULTILINE)
+
+        # Remove code blocks
         text = re.sub(r'```[\w]*\n?(.+?)```', r'\1', text, flags=re.DOTALL)
         text = re.sub(r'`(.+?)`', r'\1', text)
-        
-        # ลบ horizontal rules --- หรือ ***
-        text = re.sub(r'^(-{3,}|\*{3,})$', '', text, flags=re.MULTILINE)
-        
-        # ลบบรรทัดว่างซ้อนกัน
+
+        # Remove horizontal rules
+        text = re.sub(r'^(-{3,}|\*{3,}|_{3,})$', '', text, flags=re.MULTILINE)
+
+        # Max 1 blank line
         text = re.sub(r'\n{3,}', '\n\n', text)
-        
+
+        return self._post_process_for_readability(text.strip())
+
+    def _post_process_for_readability(self, text: str) -> str:
+        """
+        Final LINE readability pass:
+        • URLs always on their own line (LINE makes them tappable)
+        • Blank line before bullet-list blocks so they visually separate from prose
+        • Strip trailing spaces per line
+        • Max 1 consecutive blank line
+        """
+        import re
+
+        # Ensure every URL starts on its own line
+        # (don't duplicate if already at line start)
+        text = re.sub(r'(?<!\n)(https?://\S+)', r'\n\1', text)
+
+        # Ensure a blank line before a bullet-list block when it follows prose
+        # e.g.  "...ค่ะ\n• item" → "...ค่ะ\n\n• item"
+        text = re.sub(r'([^\n])\n(\u2022 )', r'\1\n\n\2', text)
+
+        # Strip trailing whitespace on every line
+        lines = [line.rstrip() for line in text.split('\n')]
+        text = '\n'.join(lines)
+
+        # Max 1 consecutive blank line
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
         return text.strip()
     
     def _remove_image_requests(self, text: str) -> str:

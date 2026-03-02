@@ -117,10 +117,10 @@ class LineHandler(BaseHandler):
                 
                 messages = [TextMessage(text=cleaned_text)]
                 
-                # Add image if available
+                # Add image if available (only if public URL is configured)
                 if relevant_image:
                     image_url = self._get_public_image_url(relevant_image)
-                    if image_url:
+                    if image_url and image_url.startswith('https://'):
                         messages.append(ImageMessage(
                             original_content_url=image_url,
                             preview_image_url=image_url

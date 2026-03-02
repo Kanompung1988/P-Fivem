@@ -48,6 +48,7 @@ class CRUDManager:
                     # Update last interaction
                     user.last_interaction = datetime.utcnow()
                     session.commit()
+                    session.expunge(user)
                     return user
                 
                 # Create new user
@@ -65,6 +66,7 @@ class CRUDManager:
                 session.add(user)
                 session.commit()
                 session.refresh(user)
+                session.expunge(user)
                 
                 logger.info(f"✅ Created new user: {platform}:{platform_user_id}")
                 return user
@@ -137,6 +139,7 @@ class CRUDManager:
                 session.add(conversation)
                 session.commit()
                 session.refresh(conversation)
+                session.expunge(conversation)
                 return conversation
         except Exception as e:
             logger.error(f"❌ Error creating conversation: {e}")
@@ -150,13 +153,16 @@ class CRUDManager:
         """Get user's most recent active conversation"""
         try:
             with self.db_manager.get_session() as session:
-                return session.query(Conversation).filter(
+                conv = session.query(Conversation).filter(
                     and_(
                         Conversation.user_id == user_id,
                         Conversation.platform == platform,
                         Conversation.status == 'active'
                     )
                 ).order_by(desc(Conversation.started_at)).first()
+                if conv:
+                    session.expunge(conv)
+                return conv
         except Exception as e:
             logger.error(f"❌ Error getting conversation: {e}")
             return None

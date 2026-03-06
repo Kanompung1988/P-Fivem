@@ -24,7 +24,7 @@ class FacebookPageScraper:
         """
         self.access_token = access_token or os.getenv("FB_ACCESS_TOKEN", "")
         self.page_id = page_id or os.getenv("FB_PAGE_ID", "SeoulholicClinic")
-        self.base_url = "https://graph.facebook.com/v18.0"
+        self.base_url = "https://graph.facebook.com/v20.0"
         
     def get_latest_posts(self, limit: int = 10) -> List[Dict[str, Any]]:
         """

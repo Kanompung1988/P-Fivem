@@ -38,7 +38,7 @@ class FacebookHandler(BaseHandler):
         if not self.page_access_token:
             logger.warning("⚠️  Facebook Page Access Token not set")
         
-        self.graph_api_url = "https://graph.facebook.com/v18.0"
+        self.graph_api_url = "https://graph.facebook.com/v20.0"
         self.ai_service = AIService()
         self.auto_reply_enabled = os.getenv('FACEBOOK_INBOX_AUTO_REPLY', 'true').lower() == 'true'
         

@@ -42,8 +42,8 @@ class FacebookCommentWebhook:
         self.auto_reply_engine = AutoReplyEngine()
         self.rate_limiter = RateLimiter()
         
-        # Facebook Graph API
-        self.graph_api_url = "https://graph.facebook.com/v18.0"
+        # Facebook Graph API (use v20.0 for better compatibility)
+        self.graph_api_url = "https://graph.facebook.com/v20.0"
         
         # Settings
         self.auto_reply_enabled = os.getenv('AUTO_REPLY_ENABLED', 'true').lower() == 'true'
@@ -183,15 +183,19 @@ class FacebookCommentWebhook:
                 user_name=user_name
             )
             
-            # Send comment reply
+            # Try to send comment reply first
             comment_replied = await self._reply_to_comment(comment_id, short_reply)
             
-            # Send DM
+            # If comment reply failed (e.g., permission issue), send DM instead
             dm_sent = False
-            if comment_replied:
+            if not comment_replied:
+                logger.info(f"💬 Comment reply failed, sending DM instead")
+                dm_sent = await self._send_dm(user_psid, full_reply)
+            elif comment_replied:
+                # If comment replied successfully, also send full details via DM
                 dm_sent = await self._send_dm(user_psid, full_reply)
             
-            # Record rate limit
+            # Record rate limit if any reply was successful
             if comment_replied or dm_sent:
                 self.rate_limiter.record_reply(user_psid)
             

@@ -365,7 +365,7 @@ async def debug_facebook():
     try:
         # 1. Page info
         r = _req.get(
-            "https://graph.facebook.com/v18.0/me",
+            "https://graph.facebook.com/v20.0/me",
             params={"access_token": token, "fields": "id,name"},
             timeout=8
         )
@@ -376,7 +376,7 @@ async def debug_facebook():
 
         # 2. Subscribed apps (webhook subscription on this page)
         r2 = _req.get(
-            "https://graph.facebook.com/v18.0/me/subscribed_apps",
+            "https://graph.facebook.com/v20.0/me/subscribed_apps",
             params={"access_token": token},
             timeout=8
         )

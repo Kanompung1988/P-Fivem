@@ -269,7 +269,7 @@ async def facebook_webhook(request: Request):
         messenger_result = {"status": "skipped"}
 
         if fb_comment_handler:
-            comment_result = await fb_comment_handler.handle_webhook(body, signature)
+            comment_result = await fb_comment_handler.handle_webhook(body, signature, raw_body=raw)
 
         if fb_messenger_handler:
             messenger_result = await fb_messenger_handler.handle_webhook(body)

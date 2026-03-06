@@ -201,25 +201,28 @@ class FacebookHandler(BaseHandler):
         """
         try:
             url = f"{self.graph_api_url}/{user_id}"
+            # In Live mode, only 'id' is freely accessible via PSID
+            # name/profile_pic require pages_user_gender permission (App Review)
             params = {
-                "fields": "id,name,first_name,last_name,profile_pic",
+                "fields": "id,name",
                 "access_token": self.page_access_token
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
             
             data = response.json()
             return {
                 "user_id": data.get("id"),
                 "display_name": data.get("name"),
-                "first_name": data.get("first_name"),
-                "last_name": data.get("last_name"),
-                "profile_pic": data.get("profile_pic")
+                "first_name": None,
+                "last_name": None,
+                "profile_pic": None
             }
             
         except Exception as e:
-            logger.error(f"❌ Error getting Facebook profile: {e}")
+            # Non-critical: profile fetch fails in Live mode without extra permissions
+            logger.debug(f"Could not fetch Facebook profile for {user_id}: {e}")
             return None
 
     def _save_message_to_db(

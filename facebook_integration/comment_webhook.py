@@ -234,13 +234,15 @@ class FacebookCommentWebhook:
             }
             
             response = requests.post(url, params=params, timeout=10)
-            response.raise_for_status()
+            if not response.ok:
+                logger.error(f"❌ Reply to comment failed: {response.status_code} {response.text}")
+                return False
             
             logger.info(f"✅ Replied to comment {comment_id}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error replying to comment: {e}")
+            logger.error(f"❌ Error replying to comment {comment_id}: {e}")
             return False
     
     async def _send_dm(self, user_psid: str, message: str) -> bool:
@@ -260,17 +262,28 @@ class FacebookCommentWebhook:
             json_data = {
                 "recipient": {"id": user_psid},
                 "message": {"text": message},
-                "messaging_type": "RESPONSE"
+                # Use MESSAGE_TAG for DMs triggered by comments (not user-initiated)
+                # CONFIRMED_EVENT_UPDATE is allowed for service/clinic use cases
+                "messaging_type": "MESSAGE_TAG",
+                "tag": "CONFIRMED_EVENT_UPDATE"
             }
             
             response = requests.post(url, params=params, json=json_data, timeout=10)
-            response.raise_for_status()
+            if not response.ok:
+                logger.error(f"❌ DM failed: {response.status_code} {response.text}")
+                # Fallback: try RESPONSE type (works if user messaged page within 24h)
+                json_data["messaging_type"] = "RESPONSE"
+                del json_data["tag"]
+                response2 = requests.post(url, params=params, json=json_data, timeout=10)
+                if not response2.ok:
+                    logger.error(f"❌ DM fallback also failed: {response2.status_code} {response2.text}")
+                    return False
             
             logger.info(f"✅ DM sent to {user_psid}")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error sending DM: {e}")
+            logger.error(f"❌ Error sending DM to {user_psid}: {e}")
             return False
     
     def _verify_signature(self, raw_body: bytes, signature: str) -> bool:

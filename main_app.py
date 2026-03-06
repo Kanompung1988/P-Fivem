@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Import handlers
 from platforms.line_handler import LineHandler
+from platforms.facebook_handler import FacebookHandler
+from platforms.handler_registry import set_handlers
 from facebook_integration.comment_webhook import FacebookCommentWebhook
 from admin_dashboard.backend.admin_router import admin_router
 
@@ -97,6 +99,16 @@ except Exception as e:
     logger.error(f"❌ Facebook Comment Handler failed: {e}")
     fb_comment_handler = None
 
+try:
+    fb_messenger_handler = FacebookHandler()
+    logger.info("✅ Facebook Messenger Handler ready")
+except Exception as e:
+    logger.error(f"❌ Facebook Messenger Handler failed: {e}")
+    fb_messenger_handler = None
+
+# Register handlers for cross-module usage (e.g. admin broadcast)
+set_handlers(line=line_handler, facebook=fb_messenger_handler)
+
 # Initialize database (if available)
 try:
     from database.connection import init_db, db_manager
@@ -128,7 +140,7 @@ async def root():
         "version": "2.0.0",
         "platforms": {
             "line": line_handler is not None,
-            "facebook": fb_comment_handler is not None
+            "facebook": (fb_comment_handler is not None or fb_messenger_handler is not None)
         }
     }
 
@@ -140,14 +152,15 @@ async def health_check():
         "status": "healthy",
         "services": {
             "line": "ok" if line_handler else "unavailable",
-            "facebook": "ok" if fb_comment_handler else "unavailable",
+            "facebook_comments": "ok" if fb_comment_handler else "unavailable",
+            "facebook_messenger": "ok" if fb_messenger_handler else "unavailable",
             "database": "ok",  # TODO: Check actual DB connection
             "redis": "ok"  # TODO: Check actual Redis connection
         }
     }
     
     # Check if any critical service is down
-    if not line_handler and not fb_comment_handler:
+    if not line_handler and not fb_comment_handler and not fb_messenger_handler:
         health["status"] = "degraded"
     
     return health
@@ -189,7 +202,7 @@ async def facebook_webhook_verify(
     """
     Facebook Webhook Verification (GET)
     """
-    if not fb_comment_handler:
+    if not fb_comment_handler and not fb_messenger_handler:
         raise HTTPException(status_code=503, detail="Facebook handler not available")
     
     # Get query parameters
@@ -201,7 +214,14 @@ async def facebook_webhook_verify(
         raise HTTPException(status_code=400, detail="Missing parameters")
     
     try:
-        result = await fb_comment_handler.handle_verification(mode, token, challenge)
+        if fb_comment_handler:
+            result = await fb_comment_handler.handle_verification(mode, token, challenge)
+        else:
+            expected_token = os.getenv('FACEBOOK_VERIFY_TOKEN', 'seoulholic_webhook_verify_2026')
+            if mode == "subscribe" and token == expected_token:
+                result = {"challenge": challenge}
+            else:
+                result = {"error": "Verification failed"}
         
         if "error" in result:
             raise HTTPException(status_code=403, detail=result["error"])
@@ -222,7 +242,7 @@ async def facebook_webhook(request: Request):
     Facebook Webhook Handler (POST)
     Handles comments and messenger events
     """
-    if not fb_comment_handler:
+    if not fb_comment_handler and not fb_messenger_handler:
         raise HTTPException(status_code=503, detail="Facebook handler not available")
     
     # Get signature
@@ -236,8 +256,20 @@ async def facebook_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON")
     
     try:
-        result = await fb_comment_handler.handle_webhook(body, signature)
-        return JSONResponse(content=result)
+        comment_result = {"status": "skipped"}
+        messenger_result = {"status": "skipped"}
+
+        if fb_comment_handler:
+            comment_result = await fb_comment_handler.handle_webhook(body, signature)
+
+        if fb_messenger_handler:
+            messenger_result = await fb_messenger_handler.handle_webhook(body)
+
+        return JSONResponse(content={
+            "status": "ok",
+            "comment": comment_result,
+            "messenger": messenger_result
+        })
         
     except Exception as e:
         logger.error(f"Facebook webhook error: {e}", exc_info=True)
@@ -264,7 +296,7 @@ async def legacy_stats():
                 "status": "active" if line_handler else "inactive"
             },
             "facebook": {
-                "status": "active" if fb_comment_handler else "inactive"
+                "status": "active" if (fb_comment_handler or fb_messenger_handler) else "inactive"
             }
         },
         "note": "This endpoint is deprecated. Use /api/admin/analytics/stats instead"
@@ -303,7 +335,8 @@ async def startup_event():
     logger.info("🚀 Seoulholic Multi-Platform Chatbot Starting...")
     logger.info("=" * 80)
     logger.info(f"LINE Handler: {'✅ Ready' if line_handler else '❌ Not available'}")
-    logger.info(f"Facebook Handler: {'✅ Ready' if fb_comment_handler else '❌ Not available'}")
+    logger.info(f"Facebook Comment Handler: {'✅ Ready' if fb_comment_handler else '❌ Not available'}")
+    logger.info(f"Facebook Messenger Handler: {'✅ Ready' if fb_messenger_handler else '❌ Not available'}")
     logger.info("=" * 80)
 
 

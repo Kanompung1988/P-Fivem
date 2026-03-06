@@ -40,6 +40,14 @@ class AIService:
         self.api_key = _get_env("TYPHOON_API_KEY")
         self.base_url = "https://api.opentyphoon.ai/v1"
         self.model_name = _get_env("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
+        self.embedding_model = _get_env("EMBEDDING_MODEL", "text-embedding-3-small")
+        embeddings_enabled_env = _get_env("EMBEDDINGS_ENABLED")
+        if embeddings_enabled_env is None:
+            # Typhoon endpoint may not expose embeddings for all plans/routes.
+            self.embedding_enabled = "opentyphoon.ai" not in self.base_url
+        else:
+            self.embedding_enabled = embeddings_enabled_env.lower() == "true"
+        self._embedding_disabled_reason: Optional[str] = None
         print(f"[AI] Using Typhoon model: {self.model_name}")
             
         self.client = self._create_openai_client()
@@ -177,15 +185,21 @@ class AIService:
 
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text using Typhoon embeddings"""
-        if not self.client:
+        if not self.client or not self.embedding_enabled:
             return []
             
         try:
             # Normalize text (better for caching)
             text = text.replace("\n", " ").strip()
             # Note: Typhoon uses OpenAI-compatible API
-            return self.client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
+            return self.client.embeddings.create(input=[text], model=self.embedding_model).data[0].embedding
         except Exception as e:
+            error_text = str(e)
+            if "404" in error_text or "Not Found" in error_text:
+                self.embedding_enabled = False
+                self._embedding_disabled_reason = "Embeddings endpoint not available on current provider"
+                print("Embedding disabled: provider does not support embeddings endpoint, fallback to keyword retrieval")
+                return []
             print(f"Embedding error (using Typhoon): {e}")
             return []
 
@@ -293,15 +307,21 @@ Standalone Question:"""
         has_embeddings = any(len(doc["embedding"]) > 0 for doc in self.knowledge_base)
         
         if not self.client or not has_embeddings:
-            # Fallback to simple keyword match (use original text mostly, or rewritten if simple)
-            # For keyword match, sometimes rewritten query is better, sometimes worse.
-            # Let's use search_query generally.
-            query_lower = search_query.lower()
-            found = []
+            # Fallback: lexical score by keyword overlap in source/content
+            query_terms = [term for term in search_query.lower().split() if term.strip()]
+            scored_docs = []
             for doc in self.knowledge_base:
-                if doc["source"].lower() in query_lower:
-                    found.append(f"--- {doc['source']} ---\n{doc['content']}")
-            return "\n\n".join(found[:2])
+                doc_text = f"{doc.get('source', '')} {doc.get('content', '')}".lower()
+                score = sum(1 for term in query_terms if term in doc_text)
+                if score > 0:
+                    scored_docs.append((score, doc))
+
+            scored_docs.sort(key=lambda item: item[0], reverse=True)
+            if not scored_docs:
+                return ""
+
+            found = [f"--- {doc['source']} ---\n{doc['content']}" for _, doc in scored_docs[:2]]
+            return "\n\n".join(found)
         
         try:
             # 1. Get query embedding

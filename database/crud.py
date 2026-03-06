@@ -419,6 +419,78 @@ class CRUDManager:
             logger.error(f"❌ Error creating admin: {e}")
             return None
 
+    # ==================== BROADCAST OPERATIONS ====================
+
+    def get_users_for_broadcast(
+        self,
+        platform: Optional[str] = None,
+        target_tags: Optional[List[str]] = None,
+        limit: int = 5000
+    ) -> List[User]:
+        """Get users eligible for broadcast with optional platform/tag filtering"""
+        try:
+            with self.db_manager.get_session() as session:
+                query = session.query(User)
+                if platform:
+                    query = query.filter(User.platform == platform)
+
+                users = query.order_by(desc(User.last_interaction)).limit(limit).all()
+                if not target_tags:
+                    return users
+
+                wanted = {tag.strip().lower() for tag in target_tags if tag and tag.strip()}
+                if not wanted:
+                    return users
+
+                filtered = []
+                for user in users:
+                    user_tags = user.tags or []
+                    normalized = {str(tag).strip().lower() for tag in user_tags}
+                    if normalized.intersection(wanted):
+                        filtered.append(user)
+                return filtered
+        except Exception as e:
+            logger.error(f"❌ Error getting users for broadcast: {e}")
+            return []
+
+    def create_broadcast_log(
+        self,
+        platform: str,
+        target_users: int,
+        successful: int,
+        failed: int,
+        metadata: Optional[Dict[str, Any]] = None,
+        promotion_id: Optional[int] = None
+    ) -> Optional[BroadcastLog]:
+        """Create broadcast log record"""
+        try:
+            with self.db_manager.get_session() as session:
+                record = BroadcastLog(
+                    promotion_id=promotion_id,
+                    platform=platform,
+                    target_users=target_users,
+                    successful=successful,
+                    failed=failed,
+                    sent_at=datetime.utcnow(),
+                    broadcast_metadata=metadata or {}
+                )
+                session.add(record)
+                session.commit()
+                session.refresh(record)
+                return record
+        except Exception as e:
+            logger.error(f"❌ Error creating broadcast log: {e}")
+            return None
+
+    def get_broadcast_history(self, limit: int = 50) -> List[BroadcastLog]:
+        """Get recent broadcast history"""
+        try:
+            with self.db_manager.get_session() as session:
+                return session.query(BroadcastLog).order_by(desc(BroadcastLog.sent_at)).limit(limit).all()
+        except Exception as e:
+            logger.error(f"❌ Error getting broadcast history: {e}")
+            return []
+
 
 # Global CRUD manager instance
 crud_manager: Optional[CRUDManager] = None

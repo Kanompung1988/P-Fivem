@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 import logging
+import os
 
 from admin_dashboard.backend.auth import (
     get_current_admin, require_admin_role,
@@ -15,6 +16,7 @@ from admin_dashboard.backend.auth import (
     get_password_hash
 )
 from database.crud import get_crud
+from platforms.handler_registry import get_line_handler, get_facebook_handler
 
 logger = logging.getLogger(__name__)
 
@@ -371,11 +373,92 @@ async def send_broadcast(
 ):
     """Send broadcast message to users"""
     try:
-        # TODO: Implement broadcast functionality
+        platform = (broadcast.platform or "").lower().strip()
+        if platform not in {"line", "facebook", "all"}:
+            raise HTTPException(status_code=400, detail="Invalid platform. Use: line, facebook, all")
+
+        crud = get_crud()
+        line_handler = get_line_handler()
+        facebook_handler = get_facebook_handler()
+
+        if platform in {"line", "all"} and not line_handler:
+            raise HTTPException(status_code=503, detail="LINE handler not available")
+        if platform in {"facebook", "all"} and not facebook_handler:
+            raise HTTPException(status_code=503, detail="Facebook handler not available")
+
+        targets = ["line", "facebook"] if platform == "all" else [platform]
+
+        summary = {
+            "total_target_users": 0,
+            "total_successful": 0,
+            "total_failed": 0,
+            "by_platform": {}
+        }
+
+        for target_platform in targets:
+            users = crud.get_users_for_broadcast(
+                platform=target_platform,
+                target_tags=broadcast.target_tags,
+                limit=5000
+            )
+
+            success_count = 0
+            failed_count = 0
+
+            for user in users:
+                try:
+                    if target_platform == "line":
+                        ok = await line_handler.send_message(
+                            user.platform_user_id,
+                            {
+                                "text": broadcast.message,
+                                "image_url": broadcast.image_url
+                            }
+                        )
+                    else:
+                        # Proactive messaging requires MESSAGE_TAG and valid tag
+                        ok = await facebook_handler.send_message(
+                            user.platform_user_id,
+                            {
+                                "text": broadcast.message,
+                                "messaging_type": "MESSAGE_TAG",
+                                "tag": os.getenv("FACEBOOK_BROADCAST_TAG", "ACCOUNT_UPDATE")
+                            }
+                        )
+
+                    if ok:
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                except Exception:
+                    failed_count += 1
+
+            crud.create_broadcast_log(
+                platform=target_platform,
+                target_users=len(users),
+                successful=success_count,
+                failed=failed_count,
+                metadata={
+                    "message_preview": broadcast.message[:180],
+                    "target_tags": broadcast.target_tags or [],
+                    "image_url": broadcast.image_url,
+                    "triggered_by": current_admin.username
+                }
+            )
+
+            summary["total_target_users"] += len(users)
+            summary["total_successful"] += success_count
+            summary["total_failed"] += failed_count
+            summary["by_platform"][target_platform] = {
+                "target_users": len(users),
+                "successful": success_count,
+                "failed": failed_count
+            }
+
         return {
             "success": True,
-            "message": "Broadcast not yet implemented",
-            "preview": broadcast.dict()
+            "message": "Broadcast sent",
+            "summary": summary
         }
     
     except Exception as e:
@@ -390,11 +473,24 @@ async def get_broadcast_history(
 ):
     """Get broadcast history"""
     try:
-        # TODO: Implement broadcast history
+        crud = get_crud()
+        records = crud.get_broadcast_history(limit=limit)
+
+        broadcasts = []
+        for item in records:
+            broadcasts.append({
+                "id": item.id,
+                "platform": item.platform,
+                "target_users": item.target_users,
+                "successful": item.successful,
+                "failed": item.failed,
+                "sent_at": item.sent_at.isoformat() if item.sent_at else None,
+                "metadata": item.broadcast_metadata or {}
+            })
+
         return {
-            "total": 0,
-            "broadcasts": [],
-            "message": "Broadcast history not yet implemented"
+            "total": len(broadcasts),
+            "broadcasts": broadcasts
         }
     
     except Exception as e:

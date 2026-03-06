@@ -167,6 +167,51 @@ async def health_check():
 
 
 # ============================================================================
+# PRIVACY POLICY & TERMS (required for Meta App Live mode)
+# ============================================================================
+
+@app.get("/privacy")
+async def privacy_policy():
+    """Privacy Policy page (required for Meta App Review)"""
+    from fastapi.responses import HTMLResponse
+    html = """<!DOCTYPE html>
+<html lang="th">
+<head><meta charset="UTF-8"><title>Privacy Policy - Areazero Clinic</title>
+<style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;color:#333}h1{color:#c0392b}h2{color:#555;margin-top:30px}</style>
+</head><body>
+<h1>Privacy Policy</h1>
+<p><strong>Areazero Clinic</strong> ให้ความสำคัญกับความเป็นส่วนตัวของข้อมูลผู้ใช้</p>
+<h2>ข้อมูลที่เก็บรวบรวม</h2>
+<p>เราเก็บข้อมูลที่จำเป็นสำหรับการให้บริการแชทบอท เช่น ข้อความสนทนา และ User ID ของแพลตฟอร์ม (LINE, Facebook Messenger) เพื่อให้บริการตอบคำถามและนัดหมาย</p>
+<h2>การใช้ข้อมูล</h2>
+<p>ข้อมูลใช้เพื่อตอบคำถาม ให้คำแนะนำบริการ และปรับปรุงคุณภาพการบริการเท่านั้น ไม่มีการเผยแพร่ข้อมูลให้บุคคลที่สาม</p>
+<h2>การเก็บรักษาข้อมูล</h2>
+<p>ข้อมูลสนทนาถูกเก็บในระบบที่ปลอดภัย และสามารถร้องขอให้ลบได้โดยติดต่อเราโดยตรง</p>
+<h2>ติดต่อ</h2>
+<p>📧 kanompungth66@gmail.com<br>📞 099-989-2893</p>
+<p><small>อัปเดตล่าสุด: มีนาคม 2026</small></p>
+</body></html>"""
+    return HTMLResponse(content=html)
+
+
+@app.get("/terms")
+async def terms_of_service():
+    """Terms of Service page"""
+    from fastapi.responses import HTMLResponse
+    html = """<!DOCTYPE html>
+<html lang="th">
+<head><meta charset="UTF-8"><title>Terms of Service - Areazero Clinic</title>
+<style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;color:#333}h1{color:#c0392b}</style>
+</head><body>
+<h1>Terms of Service</h1>
+<p>การใช้บริการแชทบอทของ <strong>Areazero Clinic</strong> ถือว่าท่านยอมรับเงื่อนไขการให้บริการ</p>
+<p>บริการนี้ให้ข้อมูลเบื้องต้นเกี่ยวกับบริการความงาม ไม่ใช่คำแนะนำทางการแพทย์</p>
+<p><small>อัปเดตล่าสุด: มีนาคม 2026</small></p>
+</body></html>"""
+    return HTMLResponse(content=html)
+
+
+# ============================================================================
 # LINE WEBHOOK
 # ============================================================================
 

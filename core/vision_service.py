@@ -1,7 +1,7 @@
 """
 Vision Service สำหรับ Seoulholic Clinic
 รองรับ: ภาพผิว, PDF, ภาพโปรโมชั่น
-ใช้ GPT-4o Vision API
+ใช้ Typhoon Vision API (OpenAI-compatible)
 """
 
 import os
@@ -20,11 +20,13 @@ class VisionService:
     """Multimodal Vision Service for Seoulholic Clinic"""
     
     def __init__(self):
-        """Initialize Vision Service with GPT-4o Vision"""
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o"  # หรือ "gpt-4o-mini" สำหรับถูกกว่า
+        """Initialize Vision Service with Typhoon Vision API"""
+        api_key = os.getenv("TYPHOON_API_KEY")
+        base_url = "https://api.opentyphoon.ai/v1"
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
         
-        logger.info(" Vision Service initialized")
+        logger.info(f"Vision Service initialized with Typhoon model: {self.model}")
     
     def encode_image_to_base64(self, image_path: str) -> str:
         """

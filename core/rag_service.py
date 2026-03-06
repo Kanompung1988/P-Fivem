@@ -6,7 +6,7 @@ RAG Service for Seoulholic Clinic
 
 from llama_index.core import VectorStoreIndex, Document, Settings, StorageContext
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai import OpenAI as OpenAILLM
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 import json
@@ -29,15 +29,17 @@ class SeoulholicRAG:
         Args:
             chroma_path: Path to ChromaDB storage
         """
-        # Setup LlamaIndex
+        # Setup LlamaIndex with Typhoon
         Settings.embed_model = OpenAIEmbedding(
-            model="text-embedding-3-small",  # ถูกสุด $0.00002/1K tokens
-            api_key=os.getenv("OPENAI_API_KEY")
+            model="text-embedding-3-small",
+            api_key=os.getenv("TYPHOON_API_KEY"),
+            api_base="https://api.opentyphoon.ai/v1"
         )
-        Settings.llm = OpenAI(
-            model="gpt-4o-mini",  # ถูกกว่า gpt-4o 60x, เร็วกว่า 2x
-            temperature=0.3,  # ต่ำ = สม่ำเสมอ, สูง = creative
-            api_key=os.getenv("OPENAI_API_KEY")
+        Settings.llm = OpenAILLM(
+            model=os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct"),
+            temperature=0.6,
+            api_key=os.getenv("TYPHOON_API_KEY"),
+            api_base="https://api.opentyphoon.ai/v1"
         )
         
         # Setup ChromaDB

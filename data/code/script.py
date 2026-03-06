@@ -122,8 +122,10 @@ class OpenAIProvider(LLMProvider):
         if not OPENAI_AVAILABLE:
             raise ImportError("OpenAI package not installed. Run: pip install openai")
         
-        self.client = openai.AsyncOpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o-mini"  # Default, can override
+        api_key = api_key or os.getenv("TYPHOON_API_KEY")
+        base_url = "https://api.opentyphoon.ai/v1"
+        self.client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.model = os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
         
     async def generate(self, prompt: str, config: GenerationConfig) -> Dict:
         try:
@@ -150,7 +152,7 @@ class OpenAIProvider(LLMProvider):
             raise
     
     def get_model_name(self) -> str:
-        return "gpt-4o-mini"
+        return os.getenv("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
 
 
 class GeminiProvider(LLMProvider):

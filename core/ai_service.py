@@ -36,11 +36,11 @@ class AIService:
         if self.initialized:
             return
         
-        # Chatbot Engine: GPT-4.1-mini (ตาม AI_Chatbot_Summary.pdf)
-        self.api_key = _get_env("OPENAI_API_KEY")
-        self.base_url = _get_env("OPENAI_BASE_URL")
-        self.model_name = _get_env("OPENAI_MODEL", "gpt-4.1-mini")
-        print(f"[AI] Using OpenAI model: {self.model_name}")
+        # Chatbot Engine: Typhoon v2.5 30B (SCB 10X)
+        self.api_key = _get_env("TYPHOON_API_KEY")
+        self.base_url = "https://api.opentyphoon.ai/v1"
+        self.model_name = _get_env("TYPHOON_MODEL", "typhoon-v2.5-30b-a3b-instruct")
+        print(f"[AI] Using Typhoon model: {self.model_name}")
             
         self.client = self._create_openai_client()
         self.knowledge_base = []
@@ -57,17 +57,15 @@ class AIService:
         self.initialized = True
 
     def _create_openai_client(self):
-        """Create an OpenAI client if configuration exists; otherwise return None."""
+        """Create a Typhoon client using OpenAI-compatible SDK."""
         if not self.api_key:
             return None
 
         try:
             from openai import OpenAI
-            if self.base_url:
-                return OpenAI(api_key=self.api_key, base_url=self.base_url)
-            return OpenAI(api_key=self.api_key)
+            return OpenAI(api_key=self.api_key, base_url=self.base_url)
         except Exception as e:
-            print(f"Error creating OpenAI client: {e}")
+            print(f"Error creating Typhoon client: {e}")
             return None
     
     def _get_cache_key(self, text: str) -> str:
@@ -178,16 +176,17 @@ class AIService:
         return expanded
 
     def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding for text using OpenAI text-embedding-3-small"""
+        """Get embedding for text using Typhoon embeddings"""
         if not self.client:
             return []
             
         try:
             # Normalize text (better for caching)
             text = text.replace("\n", " ").strip()
+            # Note: Typhoon uses OpenAI-compatible API
             return self.client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
         except Exception as e:
-            print(f"Embedding error: {e}")
+            print(f"Embedding error (using Typhoon): {e}")
             return []
 
     def reload_knowledge_base(self):

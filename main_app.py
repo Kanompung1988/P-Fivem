@@ -249,14 +249,20 @@ async def facebook_webhook(request: Request):
     # Get signature
     signature = request.headers.get("X-Hub-Signature-256", "")
     
-    # Get body
+    # Get body — Meta test pings sometimes send empty body; treat as no-op (must return 200)
     try:
+        raw = await request.body()
+        if not raw.strip():
+            logger.info("📭 Facebook webhook: empty body (Meta test ping) — returning 200")
+            return JSONResponse(content={"status": "ok", "note": "empty body"})
         body = await request.json()
     except Exception as e:
         logger.error(f"Invalid JSON body: {e}")
-        raise HTTPException(status_code=400, detail="Invalid JSON")
+        # Return 200 to Meta so it doesn't disable the webhook subscription
+        return JSONResponse(content={"status": "ok", "note": "invalid json ignored"})
 
-    logger.info(f"📦 Facebook webhook payload: object={body.get('object', '?')}, entries={len(body.get('entry', []))}") 
+    logger.info(f"📦 Facebook webhook payload: object={body.get('object', '?')}, entries={len(body.get('entry', []))}")
+
     
     try:
         comment_result = {"status": "skipped"}

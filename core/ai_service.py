@@ -276,11 +276,14 @@ Task: Rephrase the user's follow-up question to be a standalone question that in
 Standalone Question:"""
 
         try:
+            # Rewrite prompt is short (~200-400 tokens); use full budget same as chat_completion
+            rewrite_msgs = [{"role": "user", "content": prompt}]
+            trimmed_rewrite = self._sliding_window(rewrite_msgs)
             resp = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
+                messages=trimmed_rewrite,
                 temperature=0.3,
-                max_tokens=150
+                max_tokens=8192
             )
             rewritten = resp.choices[0].message.content.strip()
             # If model returns empty or quote, fallback

@@ -280,6 +280,67 @@ async def facebook_webhook(request: Request):
 
 
 # ============================================================================
+# FACEBOOK DEBUG ENDPOINT
+# ============================================================================
+
+@app.get("/debug/facebook")
+async def debug_facebook():
+    """
+    Debug Facebook configuration and subscription status.
+    Call this to diagnose why Messenger events are not arriving.
+    """
+    import requests as _req
+    token = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "")
+    app_secret = os.getenv("FACEBOOK_APP_SECRET", "")
+    verify_token = os.getenv("FACEBOOK_VERIFY_TOKEN", "seoulholic_webhook_verify_2026")
+
+    result = {
+        "env": {
+            "FACEBOOK_PAGE_ACCESS_TOKEN": ("SET (len=" + str(len(token)) + ")") if token else "❌ NOT SET",
+            "FACEBOOK_APP_SECRET": "SET" if app_secret else "❌ NOT SET",
+            "FACEBOOK_VERIFY_TOKEN": verify_token,
+            "FACEBOOK_INBOX_AUTO_REPLY": os.getenv("FACEBOOK_INBOX_AUTO_REPLY", "true"),
+        },
+        "webhook_url": "https://p-fivem-hjzp.onrender.com/webhook/facebook",
+        "page_info": None,
+        "subscribed_apps": None,
+        "error": None,
+    }
+
+    if not token:
+        result["error"] = "FACEBOOK_PAGE_ACCESS_TOKEN is not set — cannot query Meta API"
+        return result
+
+    try:
+        # 1. Page info
+        r = _req.get(
+            "https://graph.facebook.com/v18.0/me",
+            params={"access_token": token, "fields": "id,name"},
+            timeout=8
+        )
+        if r.status_code == 200:
+            result["page_info"] = r.json()
+        else:
+            result["page_info"] = {"error": r.text}
+
+        # 2. Subscribed apps (webhook subscription on this page)
+        r2 = _req.get(
+            "https://graph.facebook.com/v18.0/me/subscribed_apps",
+            params={"access_token": token},
+            timeout=8
+        )
+        if r2.status_code == 200:
+            result["subscribed_apps"] = r2.json()
+        else:
+            result["subscribed_apps"] = {"error": r2.text}
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+# ============================================================================
 # LEGACY ADMIN STATS (kept for compatibility)
 # ============================================================================
 

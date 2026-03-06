@@ -229,14 +229,23 @@ class FacebookCommentWebhook:
         """
         try:
             url = f"{self.graph_api_url}/{comment_id}/comments"
+            
+            # Use POST with JSON body instead of params
+            data = {
+                "message": message
+            }
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
             params = {
-                "message": message,
                 "access_token": self.page_access_token
             }
             
-            response = requests.post(url, params=params, timeout=10)
+            response = requests.post(url, data=data, params=params, headers=headers, timeout=10)
             if not response.ok:
                 logger.error(f"❌ Reply to comment failed: {response.status_code} {response.text}")
+                logger.error(f"   URL: {url}")
+                logger.error(f"   Token length: {len(self.page_access_token) if self.page_access_token else 0}")
                 return False
             
             logger.info(f"✅ Replied to comment {comment_id}")

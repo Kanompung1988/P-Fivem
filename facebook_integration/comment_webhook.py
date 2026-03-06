@@ -150,11 +150,12 @@ class FacebookCommentWebhook:
                 return
 
             # Skip replies to other comments (only handle top-level)
-            if parent_id:
-                logger.info(f"⏩ Skipping nested comment: {comment_id}")
+            # Note: parent_id == post_id means it's a top-level comment on the post
+            if parent_id and parent_id != post_id:
+                logger.info(f"⏩ Skipping nested comment (parent={parent_id}): {comment_id}")
                 return
 
-            logger.info(f"📝 New comment from {user_name} ({user_psid}): {message}")
+            logger.info(f"📝 New top-level comment from {user_name} ({user_psid}): {message}")
             
             # Check if auto-reply is enabled
             if not self.auto_reply_enabled:

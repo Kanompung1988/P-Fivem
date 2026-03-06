@@ -61,8 +61,12 @@ class FacebookHandler(BaseHandler):
             else:
                 body = await request.json()
 
-            if body.get("object") != "page":
-                return {"status": "ignored", "reason": "non-page-event"}
+            obj = body.get("object", "?")
+            logger.info(f"🔍 FB Messenger handler: object={obj}, entries={len(body.get('entry', []))}")
+
+            if obj != "page":
+                logger.info(f"⏩ FB Messenger: ignoring non-page event (object={obj})")
+                return {"status": "ignored", "reason": f"non-page-event: {obj}"}
 
             handled_events = 0
             for entry in body.get("entry", []):

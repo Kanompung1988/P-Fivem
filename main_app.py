@@ -242,6 +242,7 @@ async def facebook_webhook(request: Request):
     Facebook Webhook Handler (POST)
     Handles comments and messenger events
     """
+    logger.info("📬 Facebook webhook POST received")
     if not fb_comment_handler and not fb_messenger_handler:
         raise HTTPException(status_code=503, detail="Facebook handler not available")
     
@@ -254,6 +255,8 @@ async def facebook_webhook(request: Request):
     except Exception as e:
         logger.error(f"Invalid JSON body: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    logger.info(f"📦 Facebook webhook payload: object={body.get('object', '?')}, entries={len(body.get('entry', []))}") 
     
     try:
         comment_result = {"status": "skipped"}

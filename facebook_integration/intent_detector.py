@@ -21,7 +21,7 @@ class IntentDetector:
             'booking': [
                 r'จอง', r'นัด', r'ทำเมื่อไร', r'วันไหน', r'คิว',
                 r'book', r'appointment', r'schedule', r'reserve',
-                r'ต้องการทำ', r'อยากทำ', r'สนใจทำ', r'ทำได้ไหม',
+                r'ต้องการทำ', r'อยากทำ', r'สนใจทำ', r'สนใจ', r'ทำได้ไหม',
                 r'พรุ่งนี้', r'วันนี้', r'วัน.*พฤหัส', r'วัน.*ศุกร์', r'วัน.*เสาร์', r'วัน.*อาทิตย์'
             ],
             'pricing': [
@@ -121,8 +121,8 @@ class IntentDetector:
         Returns:
             Should reply or not
         """
-        # Don't reply to spam or low-value comments
-        no_reply_intents = ['spam', 'praise']
+        # Don't reply to spam only; reply to everything else including unknown/greeting
+        no_reply_intents = ['spam']
         return intent not in no_reply_intents
     
     def get_priority_level(self, priority_score: int) -> str:

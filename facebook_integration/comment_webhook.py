@@ -123,6 +123,7 @@ class FacebookCommentWebhook:
         """
         try:
             # Extract comment data
+            item = value.get("item", "")  # 'comment' | 'status' | 'photo' | 'like' etc.
             comment_id = value.get("comment_id")
             post_id = value.get("post_id")
             user_psid = value.get("from", {}).get("id")
@@ -130,18 +131,30 @@ class FacebookCommentWebhook:
             message = value.get("message", "")
             verb = value.get("verb")  # 'add' | 'edited' | 'removed'
             parent_id = value.get("parent_id")  # If reply to another comment
-            
+
+            logger.info(f"📌 Feed event: item={item}, verb={verb}, comment_id={comment_id}, from={user_name}, msg={message[:50] if message else ''}")
+
+            # Only process comment items (not post/status/like/photo)
+            if item != "comment":
+                logger.info(f"⏩ Skipping non-comment feed item: item={item}")
+                return
+
             # Only process new comments (not edits/removals)
             if verb != "add":
-                logger.info(f"⏩ Skipping comment {verb}: {comment_id}")
+                logger.info(f"⏩ Skipping comment verb={verb}: {comment_id}")
                 return
-            
+
+            # Must have comment_id to reply
+            if not comment_id:
+                logger.warning(f"⚠️  comment_id missing, cannot reply")
+                return
+
             # Skip replies to other comments (only handle top-level)
             if parent_id:
                 logger.info(f"⏩ Skipping nested comment: {comment_id}")
                 return
-            
-            logger.info(f"📝 New comment from {user_name}: {message}")
+
+            logger.info(f"📝 New comment from {user_name} ({user_psid}): {message}")
             
             # Check if auto-reply is enabled
             if not self.auto_reply_enabled:
@@ -150,7 +163,8 @@ class FacebookCommentWebhook:
             
             # Detect intent
             intent, priority_score, confidence = self.intent_detector.detect(message)
-            
+            logger.info(f"🧠 Intent: {intent} (score={priority_score}, confidence={confidence:.2f})")
+
             # Check if we should reply
             if not self.intent_detector.should_reply(intent):
                 logger.info(f"⏩ Not replying to intent: {intent}")

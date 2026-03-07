@@ -180,11 +180,21 @@ class FacebookHandler(BaseHandler):
                 json_data["notification_type"] = message.get("notification_type")
             
             response = requests.post(url, params=params, json=json_data, timeout=10)
-            response.raise_for_status()
+            
+            # Log detailed error if request fails
+            if not response.ok:
+                error_detail = response.text
+                logger.error(f"❌ Facebook API Error {response.status_code}: {error_detail}")
+                logger.error(f"   Request: POST {url}")
+                logger.error(f"   Payload: {json_data}")
+                response.raise_for_status()
             
             logger.info(f"✅ Message sent to Facebook user {user_id}")
             return True
             
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"❌ HTTP Error sending Facebook message: {e}")
+            return False
         except Exception as e:
             logger.error(f"❌ Error sending Facebook message: {e}")
             return False

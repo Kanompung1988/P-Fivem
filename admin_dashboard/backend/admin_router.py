@@ -149,7 +149,7 @@ async def get_conversations(
                 "intent": conv.intent,
                 "priority": conv.priority,
                 "handled_by": conv.handled_by,
-                "user_display_name": user.display_name if user else "Unknown",
+                "user_display_name": (user.display_name or user.platform_user_id or "Unknown") if user else "Unknown",
                 "user_profile_pic": user.profile_pic_url if user else None,
             })
             

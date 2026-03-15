@@ -147,6 +147,9 @@ class LineHandler(BaseHandler):
         def handle_follow(event):
             user_id = event.source.user_id
             logger.info(f"New LINE follower: {user_id}")
+
+            # Save/create user in DB when they follow
+            self._save_message_to_db(user_id, "ติดตาม (Follow)", "user")
             
             welcome_message = (
                 "สวัสดีค่ะ! ยินดีต้อนรับสู่ Seoulholic Clinic นะคะ\n\n"
@@ -290,11 +293,25 @@ class LineHandler(BaseHandler):
                 return
             
             crud = get_crud()
+
+            # Try to fetch LINE profile for display_name and profile_pic
+            display_name = None
+            profile_pic_url = None
+            try:
+                with ApiClient(self.configuration) as api_client:
+                    line_bot_api = MessagingApi(api_client)
+                    profile = line_bot_api.get_profile(user_id)
+                    display_name = profile.display_name
+                    profile_pic_url = profile.picture_url
+            except Exception as profile_err:
+                logger.warning(f"Could not fetch LINE profile for {user_id}: {profile_err}")
             
             # Get or create user
             user = crud.get_or_create_user(
                 platform="line",
-                platform_user_id=user_id
+                platform_user_id=user_id,
+                display_name=display_name,
+                profile_pic_url=profile_pic_url
             )
             
             if not user:

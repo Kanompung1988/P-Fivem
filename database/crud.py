@@ -45,8 +45,12 @@ class CRUDManager:
                 ).first()
                 
                 if user:
-                    # Update last interaction
+                    # Update last interaction and profile if missing
                     user.last_interaction = datetime.utcnow()
+                    if display_name and not user.display_name:
+                        user.display_name = display_name
+                    if profile_pic_url and not user.profile_pic_url:
+                        user.profile_pic_url = profile_pic_url
                     session.commit()
                     session.expunge(user)
                     return user
@@ -79,7 +83,10 @@ class CRUDManager:
         """Get user by database ID"""
         try:
             with self.db_manager.get_session() as session:
-                return session.query(User).filter(User.id == user_id).first()
+                user = session.query(User).filter(User.id == user_id).first()
+                if user:
+                    session.expunge(user)
+                return user
         except Exception as e:
             logger.error(f"❌ Error getting user: {e}")
             return None

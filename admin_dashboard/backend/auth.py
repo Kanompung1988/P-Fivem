@@ -61,12 +61,26 @@ class AdminUserResponse(BaseModel):
 # Password utilities
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # Check if hash starts with $2b$ or $2a$ (bcrypt standard)
+        import bcrypt
+        if hashed_password and hashed_password.startswith('$2'):
+            # Convert strings to bytes, safely handling passlib bug
+            return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+        
+        # Fallback to passlib if it's some other format
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception as e:
+        logger.error(f"Error in verify_password: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """Hash password"""
-    return pwd_context.hash(password)
+    import bcrypt
+    # Use bcrypt directly to bypass passlib bug that limits to 72 bytes wrongly
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 # JWT utilities

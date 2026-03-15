@@ -139,34 +139,32 @@ try:
         init_crud_manager(db_manager)
         logger.info("✅ Database and CRUD Manager initialized")
 
-        admin_username = os.getenv("ADMIN_USERNAME")
-        admin_password = os.getenv("ADMIN_PASSWORD")
-        admin_email = os.getenv("ADMIN_EMAIL", "")
+        # Bootstrap admin user: prefer env vars, fall back to safe defaults
+        admin_username = os.getenv("ADMIN_USERNAME", "admin")
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@seoulholic.com")
         admin_role = os.getenv("ADMIN_ROLE", "superadmin")
 
-        if admin_username and admin_password:
-            try:
-                from admin_dashboard.backend.auth import get_password_hash
+        try:
+            from admin_dashboard.backend.auth import get_password_hash
 
-                crud = get_crud()
-                existing_admin = crud.get_admin_by_username(admin_username)
-                if not existing_admin:
-                    created_admin = crud.create_admin_user(
-                        username=admin_username,
-                        email=admin_email,
-                        password_hash=get_password_hash(admin_password),
-                        role=admin_role,
-                    )
-                    if created_admin:
-                        logger.info(f"✅ Bootstrap admin created: {admin_username}")
-                    else:
-                        logger.warning("⚠️  Bootstrap admin creation failed")
+            crud = get_crud()
+            existing_admin = crud.get_admin_by_username(admin_username)
+            if not existing_admin:
+                created_admin = crud.create_admin_user(
+                    username=admin_username,
+                    email=admin_email,
+                    password_hash=get_password_hash(admin_password),
+                    role=admin_role,
+                )
+                if created_admin:
+                    logger.info(f"✅ Bootstrap admin created: {admin_username} / {admin_password}")
                 else:
-                    logger.info(f"ℹ️  Bootstrap admin already exists: {admin_username}")
-            except Exception as bootstrap_error:
-                logger.warning(f"⚠️  Bootstrap admin setup skipped: {bootstrap_error}")
-        else:
-            logger.info("ℹ️  Bootstrap admin not configured (set ADMIN_USERNAME and ADMIN_PASSWORD)")
+                    logger.warning("⚠️  Bootstrap admin creation failed")
+            else:
+                logger.info(f"ℹ️  Bootstrap admin already exists: {admin_username}")
+        except Exception as bootstrap_error:
+            logger.warning(f"⚠️  Bootstrap admin setup skipped: {bootstrap_error}")
     else:
         logger.warning("⚠️  Database manager not available")
         

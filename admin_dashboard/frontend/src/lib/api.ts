@@ -33,11 +33,19 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
+      const requestUrl = error.config?.url || ''
+      const isAuthEndpoint =
+        requestUrl.includes('/api/admin/auth/login') ||
+        requestUrl.includes('/api/admin/auth/me')
+
       // Unauthorized - clear token and redirect to login
-      if (typeof window !== 'undefined') {
+      // Skip auto-redirect for auth endpoints to avoid breaking login flow.
+      if (!isAuthEndpoint && typeof window !== 'undefined') {
         localStorage.removeItem('auth_token')
         localStorage.removeItem('admin_user')
-        window.location.href = '/login'
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
       }
     } else if (error.response?.status === 403) {
       toast.error('คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้')

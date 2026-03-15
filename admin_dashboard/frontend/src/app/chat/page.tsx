@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   FiHome, FiMail, FiCalendar, FiSearch, FiSettings, FiPlus,
   FiStar, FiCheck, FiMoreHorizontal, FiFilter, FiSend,
@@ -9,14 +10,29 @@ import {
 import { BiMessageSquareDetail, BiUserCircle } from 'react-icons/bi'
 import { IoSparklesSharp } from 'react-icons/io5'
 import { conversationsAPI } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 
 export default function ChatPlatform() {
+  const router = useRouter()
+  const { isAuthenticated, loadFromStorage } = useAuthStore()
   const [showAppointment, setShowAppointment] = useState(true);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
+
+  // Auth guard
+  useEffect(() => {
+    loadFromStorage()
+  }, [loadFromStorage])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const token = localStorage.getItem('auth_token')
+      if (!token) router.replace('/login')
+    }
+  }, [isAuthenticated, router])
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || !activeChat) return;

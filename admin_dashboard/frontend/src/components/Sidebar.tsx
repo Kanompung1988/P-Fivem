@@ -4,13 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   FaHome, FaUsers, FaComments, FaBook, FaTags, 
-  FaBullhorn, FaChartBar, FaSignOutAlt 
+  FaBullhorn, FaChartBar, FaSignOutAlt, FaInbox
 } from 'react-icons/fa'
 import { useAuthStore } from '@/store/authStore'
 import { useRouter } from 'next/navigation'
 
 const menuItems = [
   { name: 'แดชบอร์ด', href: '/dashboard', icon: FaHome },
+  { name: 'Inbox / แชท', href: '/chat', icon: FaInbox },
   { name: 'ผู้ใช้งาน', href: '/dashboard/users', icon: FaUsers },
   { name: 'บทสนทนา', href: '/dashboard/conversations', icon: FaComments },
   { name: 'ฐานความรู้', href: '/dashboard/knowledge', icon: FaBook },

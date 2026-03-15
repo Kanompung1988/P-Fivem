@@ -114,9 +114,10 @@ class FacebookHandler(BaseHandler):
 
         profile = await self.get_user_profile(sender_id)
         display_name = profile.get("display_name") if profile else None
+        profile_pic_url = profile.get("profile_pic") if profile else None
 
         # Save inbound message
-        self._save_message_to_db(sender_id, user_text, "user", display_name)
+        self._save_message_to_db(sender_id, user_text, "user", display_name, profile_pic_url)
 
         # Session + context-aware generation
         session_manager.update_session("facebook", sender_id, {
@@ -146,7 +147,7 @@ class FacebookHandler(BaseHandler):
                 "role": "assistant",
                 "content": response_text
             })
-            self._save_message_to_db(sender_id, response_text, "bot", display_name)
+            self._save_message_to_db(sender_id, response_text, "bot", display_name, profile_pic_url)
 
         return True
     
@@ -222,12 +223,27 @@ class FacebookHandler(BaseHandler):
             response.raise_for_status()
             
             data = response.json()
+
+            # Fetch profile picture (no special permission needed)
+            pic_url = None
+            try:
+                pic_response = requests.get(
+                    f"{self.graph_api_url}/{user_id}/picture",
+                    params={"redirect": "false", "type": "normal", "access_token": self.page_access_token},
+                    timeout=5
+                )
+                if pic_response.ok:
+                    pic_data = pic_response.json()
+                    pic_url = pic_data.get("data", {}).get("url")
+            except Exception:
+                pass
+
             return {
                 "user_id": data.get("id"),
                 "display_name": data.get("name"),
                 "first_name": None,
                 "last_name": None,
-                "profile_pic": None
+                "profile_pic": pic_url
             }
             
         except Exception as e:
@@ -240,7 +256,8 @@ class FacebookHandler(BaseHandler):
         user_id: str,
         message: str,
         sender_type: str,
-        display_name: Optional[str] = None
+        display_name: Optional[str] = None,
+        profile_pic_url: Optional[str] = None
     ):
         """Save Facebook inbox message to unified conversation tables"""
         try:
@@ -254,7 +271,8 @@ class FacebookHandler(BaseHandler):
             user = crud.get_or_create_user(
                 platform="facebook",
                 platform_user_id=user_id,
-                display_name=display_name
+                display_name=display_name,
+                profile_pic_url=profile_pic_url
             )
             if not user:
                 return

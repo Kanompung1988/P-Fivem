@@ -15,8 +15,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const executeLogin = async () => {
     setErrorMessage('')
 
     if (!username || !password) {
@@ -32,10 +31,8 @@ export default function LoginPage() {
       const response = await authAPI.login(username, password)
       const { access_token } = response.data
 
-      // Save token to localStorage FIRST so the interceptor can use it
       localStorage.setItem('auth_token', access_token)
 
-      // Get user info (now the interceptor will include the token)
       let user: any = null
       try {
         const userResponse = await authAPI.getCurrentUser()
@@ -52,7 +49,6 @@ export default function LoginPage() {
         }
       }
 
-      // Save to store (this also saves to localStorage, which is fine)
       login(access_token, user)
 
       toast.success(`ยินดีต้อนรับ, ${user.username}!`)
@@ -76,6 +72,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await executeLogin()
   }
 
   return (
@@ -130,7 +131,8 @@ export default function LoginPage() {
           </div>
 
           <button
-            type="submit"
+            type="button"
+            onClick={executeLogin}
             disabled={loading}
             className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

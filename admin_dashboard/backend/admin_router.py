@@ -191,6 +191,60 @@ async def get_conversation_messages(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class ReplyRequest(BaseModel):
+    """Reply to a conversation"""
+    message: str
+    reply_to_platform: bool = False
+
+
+@admin_router.post("/conversations/{conversation_id}/reply")
+async def reply_to_conversation(
+    conversation_id: int,
+    request: ReplyRequest,
+    current_admin: AdminUserResponse = Depends(get_current_admin)
+):
+    """Send a reply message in a conversation (saved as assistant role)"""
+    try:
+        from database.models import Message, Conversation
+        from database.connection import db_manager
+        from datetime import datetime
+
+        with db_manager.get_session() as session:
+            conv = session.query(Conversation).filter(Conversation.id == conversation_id).first()
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+
+            msg = Message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=request.message,
+                created_at=datetime.utcnow(),
+            )
+            session.add(msg)
+
+            # Update message count
+            if conv.messages_count is None:
+                conv.messages_count = 0
+            conv.messages_count += 1
+
+            session.commit()
+            session.refresh(msg)
+
+            logger.info(f"Admin {current_admin.username} replied in conv {conversation_id}")
+            return {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending reply: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== KNOWLEDGE BASE ====================
 
 class KnowledgeItemCreate(BaseModel):

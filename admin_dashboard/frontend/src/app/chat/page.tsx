@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   FiHome, FiMail, FiCalendar, FiSearch, FiSettings, FiPlus,
@@ -16,11 +16,13 @@ import toast from 'react-hot-toast'
 export default function ChatPlatform() {
   const router = useRouter()
   const { isAuthenticated, loadFromStorage } = useAuthStore()
-  const [showAppointment, setShowAppointment] = useState(true);
+  const [showAppointment, setShowAppointment] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auth guard
   useEffect(() => {
@@ -34,27 +36,40 @@ export default function ChatPlatform() {
     }
   }, [isAuthenticated, router])
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || !activeChat) return;
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
-    // Optimistically update
-    const newMessage = {
-      content: inputText,
-      role: 'assistant', // Matches DB model
-      created_at: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, newMessage]);
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !activeChat || sending) return;
+
     const currentInput = inputText;
     setInputText("");
+    setSending(true);
+
+    // Optimistic update
+    const optimisticMsg = {
+      id: `opt-${Date.now()}`,
+      content: currentInput,
+      role: 'assistant',
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
 
     try {
       await conversationsAPI.sendMessage(activeChat.id, {
         message: currentInput,
-        reply_to_platform: true // Optionally notify the webhook
+        reply_to_platform: false
       });
-      // A realtime update would fetch real DB id, but optimistic is visually fine for now
-    } catch (e) {
-      toast.error('Failed to send message');
+      toast.success('ส่งข้อความแล้ว');
+    } catch (e: any) {
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      setInputText(currentInput);
+      toast.error('ส่งข้อความไม่สำเร็จ: ' + (e?.response?.data?.detail || 'ลองใหม่อีกครั้ง'));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -349,6 +364,7 @@ export default function ChatPlatform() {
             </div>
           )}
 
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
@@ -377,9 +393,13 @@ export default function ChatPlatform() {
                 </button>
                 <button 
                   onClick={handleSendMessage}
-                  disabled={!inputText.trim()}
+                  disabled={!inputText.trim() || sending}
                   className="bg-black hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[14px] font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 transition-transform active:scale-95 shadow-md">
-                  Sent <FiSend />
+                  {sending ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> กำลังส่ง...</>
+                  ) : (
+                    <>Sent <FiSend /></>
+                  )}
                 </button>
               </div>
             </div>

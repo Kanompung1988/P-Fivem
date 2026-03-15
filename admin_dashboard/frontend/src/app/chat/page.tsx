@@ -23,6 +23,14 @@ export default function ChatPlatform() {
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [activeTab, setActiveTab] = useState<'all' | 'direct' | 'unread'>('all')
+  const [noteMode, setNoteMode] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [localStage, setLocalStage] = useState('มาใหม่')
+  const [showStageDropdown, setShowStageDropdown] = useState(false)
+  const [leadStatus, setLeadStatus] = useState('มาใหม่')
+  const [aiEnhancing, setAiEnhancing] = useState(false)
+  const [aiSummarizing, setAiSummarizing] = useState(false)
 
   // Auth guard
   useEffect(() => {
@@ -111,6 +119,40 @@ export default function ChatPlatform() {
     }
   }, [activeChat]);
 
+  const stageOptions = ['มาใหม่', 'กำลังคุย', 'รอนัด', 'นัดแล้ว', 'ติดตาม', 'ปิดการขาย']
+
+  const filteredConversations = conversations.filter(conv => {
+    if (activeTab === 'direct') return conv.platform?.toLowerCase() === 'line'
+    if (activeTab === 'unread') return conv.status === 'pending' || conv.status === 'unread'
+    return true
+  })
+
+  const handleSaveNote = () => {
+    if (!noteText.trim()) return;
+    toast.success('บันทึก Note แล้ว ✓');
+    setNoteText('');
+    setNoteMode(false);
+  };
+
+  const handleAiEnhance = async () => {
+    if (!inputText.trim() || aiEnhancing) return;
+    setAiEnhancing(true);
+    toast.loading('AI กำลังปรับปรุงข้อความ...', { id: 'ai-enhance' });
+    await new Promise(r => setTimeout(r, 1200));
+    setInputText(prev => prev.trim() + ' ขอบคุณครับ/ค่ะ 😊');
+    toast.success('ปรับปรุงข้อความแล้ว', { id: 'ai-enhance' });
+    setAiEnhancing(false);
+  };
+
+  const handleAiSummarize = async () => {
+    if (aiSummarizing) return;
+    setAiSummarizing(true);
+    toast.loading('AI กำลังสรุปบทสนทนา...', { id: 'ai-sum' });
+    await new Promise(r => setTimeout(r, 1800));
+    toast.success('สรุปบทสนทนาเสร็จแล้ว ✓', { id: 'ai-sum' });
+    setAiSummarizing(false);
+  };
+
   return (
     <div className="flex h-screen bg-[#F5F7F9] text-[#1D1D21] font-sans overflow-hidden">
       
@@ -191,13 +233,13 @@ export default function ChatPlatform() {
         </div>
         
         <div className="flex px-5 py-3 gap-6 font-semibold text-[13px] text-gray-400 border-b border-gray-100">
-          <button className="text-black border-b-2 border-black pb-3 -mb-[13px]">All</button>
-          <button className="hover:text-black pb-3 -mb-[13px]">Direct</button>
-          <button className="hover:text-black pb-3 -mb-[13px]">Unread</button>
+          <button onClick={() => setActiveTab('all')} className={`pb-3 -mb-[13px] transition-colors ${activeTab === 'all' ? 'text-black border-b-2 border-black' : 'hover:text-black'}`}>All</button>
+          <button onClick={() => setActiveTab('direct')} className={`pb-3 -mb-[13px] transition-colors ${activeTab === 'direct' ? 'text-black border-b-2 border-black' : 'hover:text-black'}`}>Direct</button>
+          <button onClick={() => setActiveTab('unread')} className={`pb-3 -mb-[13px] transition-colors ${activeTab === 'unread' ? 'text-black border-b-2 border-black' : 'hover:text-black'}`}>Unread</button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-3 space-y-2">
-          {conversations.map((conv, i) => (
+          {filteredConversations.map((conv, i) => (
             <div 
               key={i}
               onClick={() => setActiveChat(conv)}
@@ -372,15 +414,15 @@ export default function ChatPlatform() {
           <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-4 flex flex-col focus-within:ring-2 focus-within:ring-black/5 focus-within:border-gray-300 transition-all">
             <input 
               type="text" 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="คุณอยากรู้อะไรเพิ่มเติมหรือไม่..... |" 
-              className="w-full text-[14px] outline-none bg-transparent mb-4 placeholder-gray-400 text-gray-800"
+              value={noteMode ? noteText : inputText}
+              onChange={(e) => noteMode ? setNoteText(e.target.value) : setInputText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { noteMode ? handleSaveNote() : handleSendMessage() } }}
+              placeholder={noteMode ? 'เขียนโน้ตภายในสำหรับลูกค้าคนนี้...' : 'คุณอยากรู้อะไรเพิ่มเติมหรือไม่..... |'} 
+              className={`w-full text-[14px] outline-none bg-transparent mb-4 text-gray-800 ${noteMode ? 'placeholder-yellow-400' : 'placeholder-gray-400'}`}
             />
             <div className="flex items-center justify-between">
               <div className="flex gap-2">
-                <button className="flex items-center gap-1.5 text-[13px] font-bold text-gray-600 hover:bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 transition-colors">
+                <button onClick={() => setNoteMode(!noteMode)} className={`flex items-center gap-1.5 text-[13px] font-bold px-3 py-2 rounded-xl border transition-colors ${noteMode ? 'bg-yellow-50 text-yellow-700 border-yellow-300' : 'text-gray-600 hover:bg-gray-50 border-gray-100'}`}>
                   <FiEdit3 size={15}/> Note
                 </button>
                 <button onClick={() => setShowAppointment(!showAppointment)} className={`flex items-center gap-1.5 text-[13px] font-bold px-3 py-2 rounded-xl border transition-colors ${showAppointment ? 'bg-blue-50 text-blue-600 border-blue-200' : 'text-gray-600 hover:bg-gray-50 border-gray-100'}`}>
@@ -388,15 +430,17 @@ export default function ChatPlatform() {
                 </button>
               </div>
               <div className="flex items-center gap-4">
-                <button className="text-[13px] font-bold text-purple-600 flex items-center gap-1.5 hover:bg-purple-50 px-3 py-2 rounded-xl transition-colors">
-                  <IoSparklesSharp size={15}/> Ai แก้ไขคำ
+                <button onClick={handleAiEnhance} disabled={aiEnhancing || !inputText.trim() || noteMode} className="text-[13px] font-bold text-purple-600 flex items-center gap-1.5 hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-xl transition-colors">
+                  {aiEnhancing ? <div className="w-3.5 h-3.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div> : <IoSparklesSharp size={15}/>} Ai แก้ไขคำ
                 </button>
                 <button 
-                  onClick={handleSendMessage}
-                  disabled={!inputText.trim() || sending}
-                  className="bg-black hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[14px] font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 transition-transform active:scale-95 shadow-md">
+                  onClick={noteMode ? handleSaveNote : handleSendMessage}
+                  disabled={noteMode ? !noteText.trim() : (!inputText.trim() || sending)}
+                  className={`${noteMode ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-black hover:bg-gray-800'} disabled:opacity-50 disabled:cursor-not-allowed text-white text-[14px] font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 transition-transform active:scale-95 shadow-md`}>
                   {sending ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> กำลังส่ง...</>
+                  ) : noteMode ? (
+                    <>บันทึก Note <FiEdit3 /></>
                   ) : (
                     <>Sent <FiSend /></>
                   )}
@@ -414,7 +458,8 @@ export default function ChatPlatform() {
         <div className="p-6 bg-white border-b border-gray-100">
           <div className="flex items-center justify-between w-full mb-5">
             <div className="font-bold tracking-tight text-gray-900">Ai Summary</div>
-            <button className="bg-black hover:bg-gray-800 text-white px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+            <button onClick={handleAiSummarize} disabled={aiSummarizing} className="bg-black hover:bg-gray-800 disabled:opacity-70 text-white px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+              {aiSummarizing && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
               สรุปด้วย AI <IoSparklesSharp size={12}/>
             </button>
           </div>
@@ -458,12 +503,19 @@ export default function ChatPlatform() {
                </div>
              </div>
              
-             <div className="flex items-center justify-between text-[13px]">
+             <div className="flex items-center justify-between text-[13px] relative">
                <span className="text-gray-500 font-medium">Stage</span>
-               <div className="flex items-center gap-2">
-                 <span className="bg-white border border-gray-100 shadow-sm px-3 py-1.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer">
-                   มาใหม่ <span className="text-gray-400">⌄</span>
+               <div className="flex items-center gap-2 relative">
+                 <span onClick={() => setShowStageDropdown(!showStageDropdown)} className="bg-white border border-gray-100 shadow-sm px-3 py-1.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer hover:border-gray-300 transition-colors">
+                   {localStage} <span className="text-gray-400">⌄</span>
                  </span>
+                 {showStageDropdown && (
+                   <div className="absolute right-10 top-9 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[150px] py-1 overflow-hidden">
+                     {stageOptions.map(s => (
+                       <button key={s} onClick={() => { setLocalStage(s); setShowStageDropdown(false); toast.success(`Stage → "${s}"`); }} className={`w-full text-left px-4 py-2 text-[13px] hover:bg-gray-50 font-semibold transition-colors ${localStage === s ? 'text-black bg-gray-50' : 'text-gray-600'}`}>{s}</button>
+                     ))}
+                   </div>
+                 )}
                  <button className="w-8 h-8 flex items-center justify-center text-gray-400 border border-gray-200 border-dashed rounded-full hover:border-black hover:text-black transition-colors"><FiPlus size={16}/></button>
                </div>
              </div>
@@ -490,10 +542,9 @@ export default function ChatPlatform() {
 
              <div className="text-[12px] font-bold text-gray-400 mb-3">Lead status</div>
              <div className="flex flex-wrap gap-2 mb-6">
-               <span className="px-3.5 py-1.5 bg-black text-white rounded-full text-[12px] font-bold shadow-sm">มาใหม่</span>
-               <span className="px-3.5 py-1.5 bg-gray-50 border border-gray-100 text-gray-600 hover:border-gray-300 cursor-pointer transition-colors rounded-full text-[12px] font-bold">สนใจ</span>
-               <span className="px-3.5 py-1.5 bg-gray-50 border border-gray-100 text-gray-600 hover:border-gray-300 cursor-pointer transition-colors rounded-full text-[12px] font-bold">กำลังนัด</span>
-               <span className="px-3.5 py-1.5 bg-gray-50 border border-gray-100 text-gray-600 hover:border-gray-300 cursor-pointer transition-colors rounded-full text-[12px] font-bold">นัดแล้ว</span>
+               {['มาใหม่', 'สนใจ', 'กำลังนัด', 'นัดแล้ว'].map(s => (
+                 <button key={s} onClick={() => { setLeadStatus(s); toast.success(`Lead: ${s}`); }} className={`px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors ${leadStatus === s ? 'bg-black text-white shadow-sm' : 'bg-gray-50 border border-gray-100 text-gray-600 hover:border-gray-300'}`}>{s}</button>
+               ))}
              </div>
 
              <div className="text-[12px] font-bold text-gray-400 mb-3 mt-2">ความสนใจ</div>

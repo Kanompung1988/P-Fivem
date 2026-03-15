@@ -77,6 +77,11 @@ export const conversationsAPI = {
     api.get(`/api/admin/conversations/${conversationId}/messages`, {
       params: { limit },
     }),
+
+  sendMessage: (
+    conversationId: number,
+    data: { message: string; reply_to_platform?: boolean }
+  ) => api.post(`/api/admin/conversations/${conversationId}/reply`, data),
 }
 
 export const knowledgeAPI = {

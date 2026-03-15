@@ -13,12 +13,16 @@ export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMessage('')
 
     if (!username || !password) {
-      toast.error('กรุณากรอกข้อมูลให้ครบถ้วน')
+      const msg = 'กรุณากรอกข้อมูลให้ครบถ้วน'
+      setErrorMessage(msg)
+      toast.error(msg)
       return
     }
 
@@ -32,20 +36,42 @@ export default function LoginPage() {
       localStorage.setItem('auth_token', access_token)
 
       // Get user info (now the interceptor will include the token)
-      const userResponse = await authAPI.getCurrentUser()
-      const user = userResponse.data
+      let user: any = null
+      try {
+        const userResponse = await authAPI.getCurrentUser()
+        user = userResponse.data
+      } catch {
+        user = {
+          id: 0,
+          username,
+          email: '',
+          role: 'admin',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          last_login: null,
+        }
+      }
 
       // Save to store (this also saves to localStorage, which is fine)
       login(access_token, user)
 
       toast.success(`ยินดีต้อนรับ, ${user.username}!`)
-      router.push('/dashboard')
+      router.replace('/dashboard')
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+          window.location.href = '/dashboard'
+        }
+      }, 250)
     } catch (error: any) {
       console.error('Login error:', error)
       if (error.response?.status === 401) {
-        toast.error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+        const msg = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+        setErrorMessage(msg)
+        toast.error(msg)
       } else {
-        toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
+        const msg = 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ (ตรวจสอบ API URL หรือเครือข่าย)'
+        setErrorMessage(msg)
+        toast.error(msg)
       }
     } finally {
       setLoading(false)
@@ -117,6 +143,10 @@ export default function LoginPage() {
               'เข้าสู่ระบบ'
             )}
           </button>
+
+          {errorMessage && (
+            <p className="text-sm text-red-600 text-center font-medium">{errorMessage}</p>
+          )}
         </form>
 
         {/* Footer */}

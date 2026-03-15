@@ -117,19 +117,45 @@ async def update_user_tags(
 async def get_conversations(
     user_id: Optional[int] = Query(None),
     platform: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     current_admin: AdminUserResponse = Depends(get_current_admin)
 ):
     """Get conversations with optional filters"""
     try:
         crud = get_crud()
         
-        # TODO: Implement get_conversations in crud.py
-        # For now, return mock data
+        conversations = crud.get_conversations(
+            user_id=user_id,
+            platform=platform,
+            status=status,
+            limit=limit,
+            offset=offset
+        )
+        
+        conv_list = []
+        for conv in conversations:
+            # get user to attach some details
+            user = crud.get_user_by_id(conv.user_id)
+            conv_list.append({
+                "id": conv.id,
+                "user_id": conv.user_id,
+                "platform": conv.platform,
+                "status": conv.status,
+                "started_at": conv.started_at.isoformat() if conv.started_at else None,
+                "ended_at": conv.ended_at.isoformat() if conv.ended_at else None,
+                "messages_count": conv.messages_count,
+                "intent": conv.intent,
+                "priority": conv.priority,
+                "handled_by": conv.handled_by,
+                "user_display_name": user.display_name if user else "Unknown",
+                "user_profile_pic": user.profile_pic_url if user else None,
+            })
+            
         return {
-            "total": 0,
-            "conversations": [],
-            "message": "Conversation listing not yet implemented"
+            "total": len(conv_list),
+            "conversations": conv_list,
         }
     
     except Exception as e:

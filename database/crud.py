@@ -181,6 +181,34 @@ class CRUDManager:
         except Exception as e:
             logger.error(f"❌ Error getting history: {e}")
             return []
+
+    def get_conversations(
+        self,
+        user_id: Optional[int] = None,
+        platform: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[Conversation]:
+        """Get conversations with optional filters"""
+        try:
+            with self.db_manager.get_session() as session:
+                query = session.query(Conversation)
+                
+                if user_id:
+                    query = query.filter(Conversation.user_id == user_id)
+                if platform:
+                    query = query.filter(Conversation.platform == platform)
+                if status:
+                    query = query.filter(Conversation.status == status)
+                    
+                conversations = query.order_by(desc(Conversation.started_at)).offset(offset).limit(limit).all()
+                for conv in conversations:
+                    session.expunge(conv)
+                return conversations
+        except Exception as e:
+            logger.error(f"❌ Error getting conversations: {e}")
+            return []
     
     # ==================== MESSAGE OPERATIONS ====================
     

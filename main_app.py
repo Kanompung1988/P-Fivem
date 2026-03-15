@@ -121,7 +121,11 @@ except Exception as e:
     instagram_handler = None
 
 # Register handlers for cross-module usage (e.g. admin broadcast)
-set_handlers(line=line_handler, facebook=fb_messenger_handler, instagram=instagram_handler)
+try:
+    set_handlers(line=line_handler, facebook=fb_messenger_handler, instagram=instagram_handler)
+except TypeError:
+    # Backward compatibility: older handler_registry accepts only line/facebook
+    set_handlers(line=line_handler, facebook=fb_messenger_handler)
 
 # Initialize database (if available)
 try:

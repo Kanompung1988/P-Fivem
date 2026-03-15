@@ -31,10 +31,14 @@ logger = logging.getLogger(__name__)
 # Import handlers
 from platforms.line_handler import LineHandler
 from platforms.facebook_handler import FacebookHandler
-from platforms.instagram_handler import InstagramHandler
 from platforms.handler_registry import set_handlers
 from facebook_integration.comment_webhook import FacebookCommentWebhook
 from admin_dashboard.backend.admin_router import admin_router
+
+try:
+    from platforms.instagram_handler import InstagramHandler
+except Exception:
+    InstagramHandler = None
 
 # Initialize FastAPI
 app = FastAPI(
@@ -108,6 +112,8 @@ except Exception as e:
     fb_messenger_handler = None
 
 try:
+    if InstagramHandler is None:
+        raise ImportError("platforms.instagram_handler not found")
     instagram_handler = InstagramHandler()
     logger.info("✅ Instagram Handler ready")
 except Exception as e:

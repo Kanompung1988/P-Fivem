@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 # Import handlers
 from platforms.line_handler import LineHandler
 from platforms.facebook_handler import FacebookHandler
+from platforms.instagram_handler import InstagramHandler
 from platforms.handler_registry import set_handlers
 from facebook_integration.comment_webhook import FacebookCommentWebhook
 from admin_dashboard.backend.admin_router import admin_router
@@ -106,13 +107,20 @@ except Exception as e:
     logger.error(f"❌ Facebook Messenger Handler failed: {e}")
     fb_messenger_handler = None
 
+try:
+    instagram_handler = InstagramHandler()
+    logger.info("✅ Instagram Handler ready")
+except Exception as e:
+    logger.error(f"❌ Instagram Handler failed: {e}")
+    instagram_handler = None
+
 # Register handlers for cross-module usage (e.g. admin broadcast)
-set_handlers(line=line_handler, facebook=fb_messenger_handler)
+set_handlers(line=line_handler, facebook=fb_messenger_handler, instagram=instagram_handler)
 
 # Initialize database (if available)
 try:
     from database.connection import init_db, db_manager
-    from database.crud import init_crud_manager
+    from database.crud import init_crud_manager, get_crud
     
     init_db(create_tables=True)
     
@@ -120,6 +128,35 @@ try:
     if db_manager:
         init_crud_manager(db_manager)
         logger.info("✅ Database and CRUD Manager initialized")
+
+        admin_username = os.getenv("ADMIN_USERNAME")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+        admin_email = os.getenv("ADMIN_EMAIL", "")
+        admin_role = os.getenv("ADMIN_ROLE", "superadmin")
+
+        if admin_username and admin_password:
+            try:
+                from admin_dashboard.backend.auth import get_password_hash
+
+                crud = get_crud()
+                existing_admin = crud.get_admin_by_username(admin_username)
+                if not existing_admin:
+                    created_admin = crud.create_admin_user(
+                        username=admin_username,
+                        email=admin_email,
+                        password_hash=get_password_hash(admin_password),
+                        role=admin_role,
+                    )
+                    if created_admin:
+                        logger.info(f"✅ Bootstrap admin created: {admin_username}")
+                    else:
+                        logger.warning("⚠️  Bootstrap admin creation failed")
+                else:
+                    logger.info(f"ℹ️  Bootstrap admin already exists: {admin_username}")
+            except Exception as bootstrap_error:
+                logger.warning(f"⚠️  Bootstrap admin setup skipped: {bootstrap_error}")
+        else:
+            logger.info("ℹ️  Bootstrap admin not configured (set ADMIN_USERNAME and ADMIN_PASSWORD)")
     else:
         logger.warning("⚠️  Database manager not available")
         
@@ -140,7 +177,8 @@ async def root():
         "version": "2.0.0",
         "platforms": {
             "line": line_handler is not None,
-            "facebook": (fb_comment_handler is not None or fb_messenger_handler is not None)
+            "facebook": (fb_comment_handler is not None or fb_messenger_handler is not None),
+            "instagram": instagram_handler is not None
         }
     }
 
@@ -329,6 +367,52 @@ async def facebook_webhook(request: Request):
         logger.error(f"Facebook webhook error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# INSTAGRAM WEBHOOKS
+# ============================================================================
+
+@app.get("/webhook/instagram")
+async def instagram_webhook_verify(request: Request):
+    """Instagram Webhook Verification (GET)"""
+    if not instagram_handler:
+        raise HTTPException(status_code=503, detail="Instagram handler not available")
+    
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    
+    if not all([mode, token, challenge]):
+        raise HTTPException(status_code=400, detail="Missing parameters")
+        
+    expected_token = os.getenv('INSTAGRAM_VERIFY_TOKEN', os.getenv('FACEBOOK_VERIFY_TOKEN', 'seoulholic_webhook_verify_2026'))
+    if mode == "subscribe" and token == expected_token:
+        return PlainTextResponse(content=challenge)
+    
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
+@app.post("/webhook/instagram")
+async def instagram_webhook(request: Request):
+    """Instagram Webhook Handler (POST)"""
+    logger.info("📬 Instagram webhook POST received")
+    if not instagram_handler:
+        raise HTTPException(status_code=503, detail="Instagram handler not available")
+    
+    try:
+        raw = await request.body()
+        if not raw.strip():
+            return JSONResponse(content={"status": "ok", "note": "empty body"})
+        body = await request.json()
+    except Exception as e:
+        return JSONResponse(content={"status": "ok", "note": "invalid json ignored"})
+        
+    try:
+        result = await instagram_handler.handle_webhook(body)
+        return JSONResponse(content={"status": "ok", "result": result})
+    except Exception as e:
+        logger.error(f"Instagram webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # FACEBOOK DEBUG ENDPOINT
